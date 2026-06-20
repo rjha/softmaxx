@@ -6,7 +6,7 @@ module online.softmaxx.xapi {
     requires io.helidon.microprofile.cors;
     requires jakarta.cdi;
     requires jakarta.inject;
-    requires jakarta.ws.rs;
+    requires transitive jakarta.ws.rs;
     requires io.helidon;
     requires io.helidon.microprofile.config;
     requires io.helidon.microprofile.server;
