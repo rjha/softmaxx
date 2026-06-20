@@ -11,6 +11,12 @@ module online.softmaxx.xapi {
     requires io.helidon.microprofile.config;
     requires io.helidon.microprofile.server;
 
+    // postgres driver + connection pool 
+    requires java.sql;
+    requires com.zaxxer.hikari;
+    // argon2d provider 
+    requires org.bouncycastle.provider;
+    
     exports online.softmaxx.xapi;
     opens online.softmaxx.xapi;
     

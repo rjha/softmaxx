@@ -64,6 +64,29 @@
             <artifactId>hamcrest-all</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- PostgreSQL JDBC Driver -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.10</version>
+        </dependency>
+
+        <!-- HikariCP Connection Pool -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>7.0.2</version>
+        </dependency>
+
+        <!-- Argon2 Password Hashing -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.84</version> <!-- Ensure you are using the latest version -->
+        </dependency>
+        
+
     </dependencies>
 
     <build>
@@ -86,6 +109,29 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- 
+            why <arguments combine.self="override"/> is added below 
+            This project is built using a Helidon Parent POM. Helidon's parent configurations 
+            natively inject and configure the exec-maven-plugin under the hood to manage microservice 
+            runtimes. When we run mvn exec:java, Maven merges this project settings with the parent 
+            configuration. Because the parent POM declares parameters or structured tags (like <arguments> 
+            or empty <classpath/> definitions) that conflict with a direct java execution string, 
+            the underlying parser fails with a Cannot store value into array crash. 
+            $mvn clean compile exec:java
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>online.softmaxx.xapi.auth.PasswordTest</mainClass>
+                    <classpathScope>test</classpathScope>
+                    <!-- This attribute completely breaks inheritance and stops the array error -->
+                    <arguments combine.self="override"/>
+                </configuration>
+            </plugin>
+
+
         </plugins>
     </build>
 </project>
