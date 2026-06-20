@@ -1,0 +1,81 @@
+
+
+# install postgresql@18 on mac. if there are starting trouble after installation 
+then run the post install steps again. and then start the postgresql@18 database 
+using a script. (we will switch to a brew service later)
+
+# export LC_ALL="en_US.UTF-8" ;
+/opt/homebrew/opt/postgresql@18/bin/postgres -D /opt/homebrew/var/postgresql@18
+
+
+# mbair-2:~ rjha$ ~/sw/bin/postgresql18.sh 
+
+....
+....
+2026-06-20 11:02:38.251 IST [42432] LOG:  database system is ready to accept connections
+
+
+# try connection from a terminal 
+
+$psql -U postgres
+This will complain that role "postgres" does not exist.
+
+# connect using the system user,
+$psql -d postgres
+
+# CREATE ROLE postgres WITH SUPERUSER LOGIN;
+# \q 
+(no flush privileges required. The changes are visible across all sessions 
+as soon as they are committed)
+
+and try again using, 
+$psql -U postgres
+# \du 
+should show roles and attributes 
+
+# ALTER ROLE postgres WITH PASSWORD 'secret#password#postgres';
+
+# Question, why is postgres not asking for password? 
+# create java app user,
+
+* CREATE USER xapi_user WITH ENCRYPTED PASSWORD 'xapi#chong#postgres';
+* CREATE DATABASE xapi_db WITH OWNER xapi_user;
+
+
+# switch database 
+
+\c xapi_db 
+now prompt will change to xapi_db. List current connection details, 
+xapi_db=# \conninfo 
+
+# schema ownership 
+
+The best way to handle this without running commands row-by-row is to log in 
+directly as the xapi_user when creating your database objects. 
+In PostgreSQL, whoever creates a table or sequence automatically becomes 
+its absolute owner.
+
+For java apps, we would like to create all tables with xapi_user ownership. 
+The recommened method to do that is to connect to xapi_db as xapi_user. for 
+any postgres leftover privileges, 
+$ psql -U xapi_user -d xapi_db
+
+For any mixed ownership databases, log in as postgres user and tranfer ownership 
+to the desired user. 
+
+
+-- Connect to the target database
+$ psql -U postgres
+\c xapi_db
+
+-- 1. Transfer ownership of the entire public schema to your user
+ALTER SCHEMA public OWNER TO xapi_user;
+
+-- 2. Re-assign ownership of all existing tables globally
+REASSIGN OWNED BY postgres TO xapi_user;
+
+-- 3. Drop any leftover superuser dependencies in this specific database
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO xapi_user;
+
+
+
