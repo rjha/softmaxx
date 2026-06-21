@@ -33,12 +33,12 @@ $psql -U postgres
 # \du 
 should show roles and attributes 
 
-# ALTER ROLE postgres WITH PASSWORD 'secret#password#postgres';
+# ALTER ROLE postgres WITH PASSWORD 'some-password';
 
 # Question, why is postgres not asking for password? 
 # create java app user,
 
-* CREATE USER xapi_user WITH ENCRYPTED PASSWORD 'xapi#chong#postgres';
+* CREATE USER xapi_user WITH ENCRYPTED PASSWORD 'some-password';
 * CREATE DATABASE xapi_db WITH OWNER xapi_user;
 
 
