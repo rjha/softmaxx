@@ -5,8 +5,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
 import online.softmaxx.xapi.service.error.DomainExceptionMapper;
-import online.softmaxx.xapi.service.error.JsonProcessingExceptionMapper;
-
 import java.util.Set;
 
 
@@ -21,7 +19,6 @@ public class XapiApplication extends Application {
         // individual classes across XML documents.
         return Set.of(
             DomainExceptionMapper.class,
-            JsonProcessingExceptionMapper.class,
             HelloService.class,
             UserService.class
         );

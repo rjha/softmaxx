@@ -3,7 +3,6 @@ package online.softmaxx.xapi.service.error;
 
 import java.util.Locale;
 import java.util.Map;
-
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -45,16 +44,18 @@ public final class DomainExceptionMapper implements ExceptionMapper<Exception> {
             LOGGER.log(System.Logger.Level.ERROR, "Internal system error: ", exception);
         }
 
-        final String rawMessage = exception.getMessage();
+        final String errorMessage = exception.getMessage();
         final String finalMessage;
 
-        if (rawMessage != null && rawMessage.startsWith("APP_ERR:")) {
-            final ErrorResolver.ErrorDetails details = ErrorResolver.resolve(rawMessage, clientLocale);
+        if (errorMessage != null && errorMessage.startsWith(AppMessage.TOKEN_PREFIX)) {
+
+            final MessageResolver.MessageDetail details = MessageResolver.resolve(errorMessage, clientLocale);
             // Format: Append the API client error code directly to the localized message bundle text
-            finalMessage = String.format("[%s] %s", details.apiCode(), details.message());
+            finalMessage = String.format("[%s] %s", details.code(), details.message());
+
         } else {
             // Plain vanilla Exception string pass-through fallback
-            finalMessage = (rawMessage != null) ? rawMessage : "No message provided.";
+            finalMessage = (errorMessage != null) ? errorMessage : "No message provided.";
         }
 
         // 5. Return the standardized ErrorResponse utilizing the mapped HTTP status code

@@ -1,5 +1,5 @@
 package online.softmaxx.xapi.service.model;
-import online.softmaxx.xapi.service.error.AppExceptionCode;
+import online.softmaxx.xapi.service.error.AppMessage;
 import online.softmaxx.xapi.service.param.NewUserRequestParam;
 
 
@@ -13,12 +13,12 @@ public record NewUserRequest(
 ) {
     public NewUserRequest {
 
-        if (isInvalid(userName)) throw new IllegalArgumentException(AppExceptionCode.USERNAME_BLANK.name());
-        if (isInvalid(password)) throw new IllegalArgumentException(AppExceptionCode.PASSWORD_BLANK.name());
-        if (isInvalid(countryCode)) throw new IllegalArgumentException(AppExceptionCode.COUNTRY_BLANK.name());
-        if (isInvalid(phoneNumber)) throw new IllegalArgumentException(AppExceptionCode.PHONE_BLANK.name());
-        if (isInvalid(localeCode)) throw new IllegalArgumentException(AppExceptionCode.LOCALE_BLANK.name());
-        
+        if (isInvalid(userName)) throw new IllegalArgumentException(AppMessage.USERNAME_BLANK.token());
+        if (isInvalid(password)) throw new IllegalArgumentException(AppMessage.PASSWORD_BLANK.token());
+        if (isInvalid(countryCode)) throw new IllegalArgumentException(AppMessage.COUNTRY_BLANK.token());
+        if (isInvalid(phoneNumber)) throw new IllegalArgumentException(AppMessage.PHONE_BLANK.token());
+        if (isInvalid(localeCode)) throw new IllegalArgumentException(AppMessage.LOCALE_BLANK.token());
+
     }
 
     public static NewUserRequest create(final NewUserRequestParam param) {

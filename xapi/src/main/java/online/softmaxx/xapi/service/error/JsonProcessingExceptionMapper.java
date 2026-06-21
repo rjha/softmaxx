@@ -16,9 +16,10 @@ public final class JsonProcessingExceptionMapper implements ExceptionMapper<Json
     @Override
     public Response toResponse(final JsonProcessingException exception) {
 
-        final String errorMessage =  exception.getOriginalMessage();
+        final String originalError =  exception.getOriginalMessage();
+        final String errorMessage =  "malformed JSON error";
         final JsonLocation location = exception.getLocation();
-        LOGGER.log(System.Logger.Level.WARNING, "malformed JSON in request: {0}", errorMessage);
+        LOGGER.log(System.Logger.Level.WARNING, "malformed JSON in request: {0}", originalError);
         
         // Check if Jackson was able to isolate the structural failure coordinates
         if (location != null && location.getLineNr() > 0) {

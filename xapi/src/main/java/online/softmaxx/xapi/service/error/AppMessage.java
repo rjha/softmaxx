@@ -1,7 +1,7 @@
 package online.softmaxx.xapi.service.error;
 
 
-public enum AppExceptionCode {
+public enum AppMessage {
 
     // Validation Error Mappings (API Code, Clean Resource Bundle Key)
     USERNAME_BLANK("VAL-101", "VAL_USER_BLANK"),
@@ -19,20 +19,28 @@ public enum AppExceptionCode {
     MALFORMED_JSON("SYS-400", "SYS_MALFORMED_JSON"),
     UNKNOWN_FAILURE("SYS-500", "SYS_UNEXPECTED");
 
-    private final String apiCode;
-    private final String bundleKey;
+    private final String code;
+    private final String messageKey;
 
-    AppExceptionCode(final String apiCode, final String bundleKey) {
-        this.apiCode = apiCode;
-        this.bundleKey = bundleKey;
+    // Maintain a consistent centralized token signature prefix namespace
+    public static final String TOKEN_PREFIX = "APP_MSG:";
+
+    AppMessage(final String code, final String messageKey) {
+        this.code = code;
+        this.messageKey = messageKey;
     }
 
-    public String getApiCode() { 
-        return this.apiCode; 
+    public String getCode() { 
+        return this.code; 
     }
 
-    public String getBundleKey() { 
-        return this.bundleKey; 
+    public String getMessageKey() { 
+        return this.messageKey; 
     }
-    
+
+    public String token() {
+        return TOKEN_PREFIX + this.name();
+    }
+
+
 }
