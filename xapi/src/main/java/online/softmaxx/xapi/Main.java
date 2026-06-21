@@ -2,36 +2,44 @@
 package online.softmaxx.xapi;
 
 
+import io.helidon.microprofile.server.Server;
+import online.softmaxx.xapi.db.DatabaseManager; 
+import java.time.Instant;
 
-
-
-
-/**
- * Main entry point of the application.
- * <p>
- * Note that this class is required when using modules as the module main class must be in a package that is either exported
- * or opened by the module, see {@link java.lang.module.ModuleDescriptor#read(java.io.InputStream, java.util.function.Supplier)}.
- * <p>
- * This class provides a proper module main class and calls the {@link io.helidon.Main#main(String[]) built-in main class}.
- */
 public class Main {
 
-
-    /**
-    * Cannot be instantiated.
-    */
-    private Main() {
-    }
-
-
-    
-    /**
-     * Main method. Starts CDI (and the application).
-     *
-     * @param args ignored
-     */
     public static void main(String[] args) {
-                io.helidon.Main.main(args);
-    }
+        
+        System.out.println("🚀🚀🚀 [" + Instant.now() + "] booting xapi services...");
+        
+        // 1. Hook an explicit JVM Shutdown event thread to 
+        // close the database pool cleanly
 
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+
+            System.out.println("Stopping Database Connection Pool...");
+            DatabaseManager.shutdown();
+            System.out.println("shut down completed cleanly");
+
+        }));
+
+        try {
+
+            System.out.println(" Starting Helidon 4.4 MicroProfile container...");
+
+            // 2. Configure and build the Helidon application 
+            // runtime environment programmatically
+            // Helidon will still discover microprofile-config.properties automatically
+            Server server = Server.builder().build();
+            server.start();
+            String tmpl = "👍👍👍[%s] helidon server started on: http://%s:%s";
+            System.out.println(String.format(tmpl, Instant.now(), server.host(), server.port()));
+            
+
+        } catch (Exception e) {
+            System.err.println("❌❌❌ Critical failure during application bootstrap: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
 }

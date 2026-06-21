@@ -3,17 +3,14 @@ package online.softmaxx.xapi;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.client.WebTarget;
-import jakarta.ws.rs.core.Response;
-
 import io.helidon.microprofile.testing.junit5.HelidonTest;
-
 import org.junit.jupiter.api.Test;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
+
 @HelidonTest
-class MainTest {
+class XapiServiceTest {
 
     @Inject
     private WebTarget target;
@@ -21,11 +18,13 @@ class MainTest {
 
     @Test
     void testGreet() {
-        Message message = target
-                .path("simple-greet")
+        String greeting = target
+                .path("/xapi/test/greeting")
                 .request()
-                .get(Message.class);
-        assertThat(message.getMessage(), is("Hello World!"));
+                .get(String.class);
+        assertThat(greeting, is("Hello"));
+
     }
 
+    
 }
