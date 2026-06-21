@@ -17,7 +17,11 @@ public class XapiApplication extends Application {
         // This stops you from needing to configure 
         // individual classes across XML documents.
         return Set.of(
-            HelloService.class
+            DomainExceptionMapper.class,
+            JsonProcessingExceptionMapper.class,
+            HelloService.class,
+            UserService.class
         );
     }
+
 }
