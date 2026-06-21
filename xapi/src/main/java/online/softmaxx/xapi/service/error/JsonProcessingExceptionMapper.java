@@ -1,4 +1,4 @@
-package online.softmaxx.xapi.service;
+package online.softmaxx.xapi.service.error;
 
 
 import com.fasterxml.jackson.core.JsonLocation;
@@ -15,29 +15,25 @@ public final class JsonProcessingExceptionMapper implements ExceptionMapper<Json
 
     @Override
     public Response toResponse(final JsonProcessingException exception) {
-        
-        LOGGER.log(System.Logger.Level.WARNING, "Malformed JSON syntax intercepted: {0}", exception.getOriginalMessage());
-        
+
+        final String errorMessage =  exception.getOriginalMessage();
         final JsonLocation location = exception.getLocation();
+        LOGGER.log(System.Logger.Level.WARNING, "malformed JSON in request: {0}", errorMessage);
         
         // Check if Jackson was able to isolate the structural failure coordinates
         if (location != null && location.getLineNr() > 0) {
-            final int line = location.getLineNr();
-            final int column = location.getColumnNr();
-            
-            final String specificMsg = String.format("Malformed JSON payload syntax at line %d, column %d.", line, column);
-            
+
+            final JsonCoordinate coordinate = new JsonCoordinate(location.getLineNr(), location.getColumnNr());
+            final String errorMessageWithLocation = errorMessage + coordinate.toDisplayString();
             return Response.status(Response.Status.BAD_REQUEST)
                     .type(MediaType.APPLICATION_JSON)
-                    .entity(ErrorResponse.withLocation(specificMsg, line, column))
+                    .entity(ErrorResponse.of(Response.Status.BAD_REQUEST, errorMessageWithLocation))
                     .build();
         }
 
-        // Fallback for general deserialization data type mismatches
-        final String fallbackMsg = "Invalid JSON payload structure. Please verify syntax properties and data field types.";
         return Response.status(Response.Status.BAD_REQUEST)
                 .type(MediaType.APPLICATION_JSON)
-                .entity(ErrorResponse.of(fallbackMsg))
+                .entity(ErrorResponse.of(Response.Status.BAD_REQUEST, errorMessage))
                 .build();
     }
 }

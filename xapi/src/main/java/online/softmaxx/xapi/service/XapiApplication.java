@@ -4,6 +4,9 @@ package online.softmaxx.xapi.service;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
+import online.softmaxx.xapi.service.error.DomainExceptionMapper;
+import online.softmaxx.xapi.service.error.JsonProcessingExceptionMapper;
+
 import java.util.Set;
 
 

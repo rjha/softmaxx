@@ -1,4 +1,5 @@
 package online.softmaxx.xapi.service.model;
+import online.softmaxx.xapi.service.error.AppExceptionCode;
 import online.softmaxx.xapi.service.param.NewUserRequestParam;
 
 
@@ -11,11 +12,13 @@ public record NewUserRequest(
     String localeCode
 ) {
     public NewUserRequest {
-        if (isInvalid(userName)) throw new IllegalArgumentException("Username cannot be blank");
-        if (isInvalid(password)) throw new IllegalArgumentException("Password cannot be blank");
-        if (isInvalid(countryCode)) throw new IllegalArgumentException("Country code cannot be blank");
-        if (isInvalid(phoneNumber)) throw new IllegalArgumentException("Phone number cannot be blank");
-        if (isInvalid(localeCode)) throw new IllegalArgumentException("Locale code cannot be blank");
+
+        if (isInvalid(userName)) throw new IllegalArgumentException(AppExceptionCode.USERNAME_BLANK.name());
+        if (isInvalid(password)) throw new IllegalArgumentException(AppExceptionCode.PASSWORD_BLANK.name());
+        if (isInvalid(countryCode)) throw new IllegalArgumentException(AppExceptionCode.COUNTRY_BLANK.name());
+        if (isInvalid(phoneNumber)) throw new IllegalArgumentException(AppExceptionCode.PHONE_BLANK.name());
+        if (isInvalid(localeCode)) throw new IllegalArgumentException(AppExceptionCode.LOCALE_BLANK.name());
+        
     }
 
     public static NewUserRequest create(final NewUserRequestParam param) {
@@ -38,5 +41,5 @@ public record NewUserRequest(
     private static boolean isInvalid(final String str) {
         return str == null || str.isBlank();
     }
-    
+
 }
