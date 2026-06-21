@@ -10,8 +10,6 @@ import online.softmaxx.xapi.db.DatabaseManager;
 public class PasswordTest {
     public static void main(String[] args) {
 
-        PasswordService passwordService = new PasswordService();
-
         // 1. Prepare modern mobile-first sample registration data
         String userKey = "USR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         String userName = "John Doe";
@@ -24,7 +22,7 @@ public class PasswordTest {
         String localeCode = "en_IN";
 
         // Hash password at the Java Application layer using Bouncy Castle Argon2id
-        String originalHash = passwordService.hashPassword(plainPassword);
+        String originalHash = PasswordService.hashPassword(plainPassword);
 
         System.out.println("🚀 [PHASE 1: WRITE] Inserting user record into xapi_user...");
         
@@ -88,7 +86,7 @@ public class PasswordTest {
                     System.out.println("🧐 Verifying plain password against retrieved hash...");
 
                     // Execute time-constant memory match verification
-                    boolean matches = passwordService.verifyPassword(plainPassword, storedHashFromDb);
+                    boolean matches = PasswordService.verifyPassword(plainPassword, storedHashFromDb);
 
                     System.out.println("\n==============================================");
                     if (matches) {
