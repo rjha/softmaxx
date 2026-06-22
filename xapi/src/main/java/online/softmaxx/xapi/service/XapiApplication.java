@@ -21,7 +21,7 @@ public class XapiApplication extends Application {
         // individual classes across XML documents.
         return Set.of(
             HelidonMediaInterceptor.class,
-            DomainExceptionMapper.class,
+            XapiExceptionMapper.class,
             HelloService.class,
             UserService.class
         );
