@@ -16,6 +16,11 @@ module online.softmaxx.xapi {
     requires com.zaxxer.hikari;
     // argon2d provider 
     requires org.bouncycastle.provider;
+
+    // JacksonProvider 
+    requires com.fasterxml.jackson.databind;
+    // opens online.softmaxx.xapi.service to com.fasterxml.jackson.databind;
+
     
     exports online.softmaxx.xapi;
     opens online.softmaxx.xapi;

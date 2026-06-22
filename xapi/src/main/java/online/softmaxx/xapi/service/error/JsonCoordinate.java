@@ -16,7 +16,7 @@ public record JsonCoordinate(int line, int column) {
 
 
     public String toDisplayString() {
-        return String.format(" JSON parser error at [line: %d, column: %d]", line, column);
+        return String.format("JSON coordinate: [line: %d, column: %d]", line, column);
     }
 
     @Override

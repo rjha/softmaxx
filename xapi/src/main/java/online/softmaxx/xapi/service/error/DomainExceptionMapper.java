@@ -29,6 +29,7 @@ public final class DomainExceptionMapper implements ExceptionMapper<Exception> {
     @Override
     public Response toResponse(final Exception exception) {
 
+        LOGGER.log(System.Logger.Level.ERROR, "web application exception mapper invoked...");
         // get locale from from request headers
         final Locale clientLocale = headers.getAcceptableLanguages().stream()
                 .findFirst()
@@ -47,6 +48,11 @@ public final class DomainExceptionMapper implements ExceptionMapper<Exception> {
         final String errorMessage = exception.getMessage();
         final String finalMessage;
 
+        // 1. Check if the exception originates from our custom Jackson problem handler
+        if (errorMessage != null && errorMessage.startsWith("MALFORMED_JSON_AT:")) {
+            return sendJsonErrorResponse(errorMessage);
+        }
+
         if (errorMessage != null && errorMessage.startsWith(AppMessage.TOKEN_PREFIX)) {
 
             final MessageResolver.MessageDetail details = MessageResolver.resolve(errorMessage, clientLocale);
@@ -64,6 +70,35 @@ public final class DomainExceptionMapper implements ExceptionMapper<Exception> {
                 .entity(ErrorResponse.of(httpStatus, finalMessage))
                 .build();
     }
+
+
+    private Response sendJsonErrorResponse(final String tokenMessage) {
+
+        try {
+
+            final String[] parts = tokenMessage.split(":");
+            final int line = Integer.parseInt(parts[1]);
+            final int column = Integer.parseInt(parts[2]);
+            
+            final JsonCoordinate coordinate = new JsonCoordinate(line, column);
+            final String specificMsg = String.format("container JSON parsing error at %s", coordinate.toDisplayString());
+            
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(ErrorResponse.of(Response.Status.BAD_REQUEST, specificMsg))
+                    .build();
+                    
+        } catch (final Exception ex) {
+
+            LOGGER.log(System.Logger.Level.ERROR, "failed to get malformed JSON coordinates from token message: {0}", tokenMessage);
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(ErrorResponse.of(Response.Status.BAD_REQUEST, "container JSON parsing error"))
+                    .build();
+        }
+    }
+
+
 }
        
 
