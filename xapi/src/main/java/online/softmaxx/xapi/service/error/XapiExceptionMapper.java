@@ -12,9 +12,9 @@ import jakarta.ws.rs.core.HttpHeaders;
 
 
 @Provider
-public final class DomainExceptionMapper implements ExceptionMapper<Exception> {
+public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
 
-    private static final System.Logger LOGGER = System.getLogger(DomainExceptionMapper.class.getName());
+    private static final System.Logger LOGGER = System.getLogger(XapiExceptionMapper.class.getName());
 
     // Exception => http status code mapping 
     private static final Map<Class<? extends Exception>, Response.Status> EXCEPTION_STATUS_MAP = Map.of(
