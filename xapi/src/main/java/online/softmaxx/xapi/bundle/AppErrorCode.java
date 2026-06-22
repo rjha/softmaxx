@@ -12,8 +12,9 @@ public enum AppErrorCode implements MessageBundleRow {
     PASSWORD_BLANK("VAL-102", "VAL_PASS_BLANK"),
     PHONE_BLANK("VAL-103", "VAL_PHONE_BLANK"),
     COUNTRY_BLANK("VAL-104", "VAL_COUNTRY_BLANK"),
-    LOCALE_BLANK("VAL-105", "VAL_LOCALE_BLANK");
-    
+    LOCALE_BLANK("VAL-105", "VAL_LOCALE_BLANK"),
+    INVALID_CREDENTIALS("AUTH-101", "VAL_AUTH_FAILED");
+
     private final String code;
     private final String keyName;
 

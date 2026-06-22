@@ -3,6 +3,7 @@ package online.softmaxx.xapi.dao;
 import online.softmaxx.xapi.util.KeyGenerator;
 import online.softmaxx.xapi.service.model.*;
 import online.softmaxx.xapi.auth.PasswordService;
+import online.softmaxx.xapi.bundle.AppErrorCode;
 import online.softmaxx.xapi.bundle.SysErrorCode;
 import online.softmaxx.xapi.db.*;
 
@@ -76,6 +77,42 @@ public final class UserDao {
             throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
         }
     }
+
+    
+    public static String authenticateUser(final UserLoginRequest model) {
+
+        final String sql = "SELECT user_key, password_hash FROM xapi_user WHERE e164_phone = ?";
+
+        try (final java.sql.Connection conn = DatabaseManager.getConnection();
+             final java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                
+            pstmt.setString(1, model.e164Phone());
+            
+            try (final java.sql.ResultSet rs = pstmt.executeQuery()) {
+
+                if (rs.next()) {
+
+                    final String userKey = rs.getString("user_key");
+                    final String storedHash = rs.getString("password_hash");
+
+                    // Execute safe constant-time  
+                    // cryptography matching via Bouncy Castle
+                    if (PasswordService.verifyPassword(model.password(), storedHash)) {
+                        return userKey;
+                    }
+                }
+            }
+
+            // Fail with generic validation indicator 
+            // to prevent identity scraping vulnerabilities
+            throw new IllegalArgumentException(AppErrorCode.INVALID_CREDENTIALS.token());
+
+        } catch (final java.sql.SQLException e) {
+            LOGGER.log(System.Logger.Level.ERROR, "Database error during authentication sequence", e);
+            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
+        }
+    }
+
 }
 
 

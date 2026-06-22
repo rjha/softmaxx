@@ -1,5 +1,6 @@
 
 module online.softmaxx.xapi {
+
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires jakarta.xml.bind;
@@ -7,6 +8,7 @@ module online.softmaxx.xapi {
     requires jakarta.cdi;
     requires jakarta.inject;
     requires transitive jakarta.ws.rs;
+
     requires io.helidon;
     requires io.helidon.microprofile.config;
     requires io.helidon.microprofile.server;
@@ -17,11 +19,12 @@ module online.softmaxx.xapi {
     // argon2d provider 
     requires org.bouncycastle.provider;
 
-    // JacksonProvider 
+    // HelidonMediaInterceptor class 
     requires com.fasterxml.jackson.databind;
-    // opens online.softmaxx.xapi.service to com.fasterxml.jackson.databind;
+    // Mandatory access requirement for
+    //  MicroProfile JWT generation tooling
+    requires io.helidon.microprofile.jwt.auth;
 
-    
     exports online.softmaxx.xapi;
     opens online.softmaxx.xapi;
     
