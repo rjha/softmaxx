@@ -15,7 +15,7 @@ CREATE TABLE xapi_user (
     password_hash VARCHAR(255) NOT NULL, 
     country_code VARCHAR(5) NOT NULL,    
     phone_number VARCHAR(15) NOT NULL,   
-    e164_phone VARCHAR(20) NOT NULL,   
+    e164_phone VARCHAR(20) UNIQUE NOT NULL,   
     -- Nullable to support phone-only registrations       
     email VARCHAR(100),                       
     locale_code VARCHAR(10) NOT NULL,         
