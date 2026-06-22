@@ -13,8 +13,7 @@ public record JsonCoordinate(int line, int column) {
             throw new IllegalArgumentException("wrong line and column in JSON parser.");
         }
     }
-
-
+    
     public String toDisplayString() {
         return String.format("coordinate:[line: %d, column: %d]", line, column);
     }

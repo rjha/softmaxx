@@ -1,5 +1,5 @@
 package online.softmaxx.xapi.service.model;
-import online.softmaxx.xapi.service.error.AppMessage;
+import online.softmaxx.xapi.bundle.AppErrorCode;
 import online.softmaxx.xapi.service.param.NewUserRequestParam;
 
 
@@ -13,11 +13,11 @@ public record NewUserRequest(
 ) {
     public NewUserRequest {
 
-        if (isInvalid(userName)) throw new IllegalArgumentException(AppMessage.USERNAME_BLANK.token());
-        if (isInvalid(password)) throw new IllegalArgumentException(AppMessage.PASSWORD_BLANK.token());
-        if (isInvalid(countryCode)) throw new IllegalArgumentException(AppMessage.COUNTRY_BLANK.token());
-        if (isInvalid(phoneNumber)) throw new IllegalArgumentException(AppMessage.PHONE_BLANK.token());
-        if (isInvalid(localeCode)) throw new IllegalArgumentException(AppMessage.LOCALE_BLANK.token());
+        if (isInvalid(userName)) throw new IllegalArgumentException(AppErrorCode.USERNAME_BLANK.token());
+        if (isInvalid(password)) throw new IllegalArgumentException(AppErrorCode.PASSWORD_BLANK.token());
+        if (isInvalid(countryCode)) throw new IllegalArgumentException(AppErrorCode.COUNTRY_BLANK.token());
+        if (isInvalid(phoneNumber)) throw new IllegalArgumentException(AppErrorCode.PHONE_BLANK.token());
+        if (isInvalid(localeCode)) throw new IllegalArgumentException(AppErrorCode.LOCALE_BLANK.token());
 
     }
 

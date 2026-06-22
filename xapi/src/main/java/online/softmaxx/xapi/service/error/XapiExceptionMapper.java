@@ -9,20 +9,19 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import jakarta.ws.rs.core.HttpHeaders;
+import online.softmaxx.xapi.bundle.*;
 
 
 @Provider
 public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
 
     private static final System.Logger LOGGER = System.getLogger(XapiExceptionMapper.class.getName());
-   
-
+    
     // Exception => http status code mapping 
     private static final Map<Class<? extends Exception>, Response.Status> EXCEPTION_STATUS_MAP = Map.of(
         IllegalArgumentException.class, Response.Status.BAD_REQUEST 
         
     );
-
 
     @Context
     private HttpHeaders headers;
@@ -47,22 +46,29 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
         }
 
         final String errorMessage = exception.getMessage();
-        final String finalMessage;
-
+        
         // Check if the exception is because of container Json parsing errors
         if (errorMessage != null && errorMessage.startsWith(HelidonMediaInterceptor.JSON_ERROR_TOKEN)) {
             return sendJsonErrorResponse(errorMessage);
         }
 
-        // Format: Append the API client error code directly to the localized message bundle text
-        if (errorMessage != null && errorMessage.startsWith(AppMessage.TOKEN_PREFIX)) {
+        String finalMessage = (errorMessage != null) ? errorMessage : "No message provided.";
 
-            final MessageResolver.MessageDetail details = MessageResolver.resolve(errorMessage, clientLocale);
-            finalMessage = String.format("[%s] %s", details.code(), details.message());
+        // Scan the incoming error message to see if it contains one of the 
+        // message tokens that we put when creating an error message
+        
+        if (errorMessage != null) {
 
-        } else {
-            // Plain vanilla Exception string pass-through fallback
-            finalMessage = (errorMessage != null) ? errorMessage : "No message provided.";
+            for (final MessageToken token: MessageToken.values()) {
+
+                final String expectedMatchString = token.name() + ":";
+                if (errorMessage.startsWith(expectedMatchString)) {
+                    final MessageDetail details = MessageResolver.resolve(token, errorMessage, clientLocale);
+                    finalMessage = String.format("[%s] %s", details.code(), details.message());
+                    break;
+                }
+
+            }
         }
 
         // 5. Return the standardized ErrorResponse utilizing the mapped HTTP status code
