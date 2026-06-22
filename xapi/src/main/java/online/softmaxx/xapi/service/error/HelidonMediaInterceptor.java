@@ -44,6 +44,7 @@ public final class HelidonMediaInterceptor implements MessageBodyReader<Object> 
 
     private static final System.Logger LOGGER = System.getLogger(HelidonMediaInterceptor.class.getName());
     private final ObjectMapper mapper = new ObjectMapper();
+    public static final String JSON_ERROR_TOKEN = "__JSON_ERROR__";
 
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
@@ -79,9 +80,9 @@ public final class HelidonMediaInterceptor implements MessageBodyReader<Object> 
         final com.fasterxml.jackson.core.JsonLocation location = ex.getLocation();
         
         if (location != null && location.getLineNr() > 0) {
-            throw new IllegalArgumentException(String.format("MALFORMED_JSON_AT:%d:%d", location.getLineNr(), location.getColumnNr()));
+            throw new IllegalArgumentException(String.format("%s:%d:%d", JSON_ERROR_TOKEN, location.getLineNr(), location.getColumnNr()));
         }
 
-        throw new IllegalArgumentException("MALFORMED_JSON_AT:1:1");
+        throw new IllegalArgumentException(String.format("%s:1:1", JSON_ERROR_TOKEN));
     }
 }

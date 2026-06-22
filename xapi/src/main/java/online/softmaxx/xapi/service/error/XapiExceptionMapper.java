@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
 
     private static final System.Logger LOGGER = System.getLogger(XapiExceptionMapper.class.getName());
+   
 
     // Exception => http status code mapping 
     private static final Map<Class<? extends Exception>, Response.Status> EXCEPTION_STATUS_MAP = Map.of(
@@ -29,7 +30,7 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
     @Override
     public Response toResponse(final Exception exception) {
 
-        LOGGER.log(System.Logger.Level.ERROR, "web application exception mapper invoked...");
+        LOGGER.log(System.Logger.Level.ERROR, "xapi application exception mapper invoked...");
         // get locale from from request headers
         final Locale clientLocale = headers.getAcceptableLanguages().stream()
                 .findFirst()
@@ -48,15 +49,15 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
         final String errorMessage = exception.getMessage();
         final String finalMessage;
 
-        // 1. Check if the exception originates from our custom Jackson problem handler
-        if (errorMessage != null && errorMessage.startsWith("MALFORMED_JSON_AT:")) {
+        // Check if the exception is because of container Json parsing errors
+        if (errorMessage != null && errorMessage.startsWith(HelidonMediaInterceptor.JSON_ERROR_TOKEN)) {
             return sendJsonErrorResponse(errorMessage);
         }
 
+        // Format: Append the API client error code directly to the localized message bundle text
         if (errorMessage != null && errorMessage.startsWith(AppMessage.TOKEN_PREFIX)) {
 
             final MessageResolver.MessageDetail details = MessageResolver.resolve(errorMessage, clientLocale);
-            // Format: Append the API client error code directly to the localized message bundle text
             finalMessage = String.format("[%s] %s", details.code(), details.message());
 
         } else {
@@ -72,11 +73,12 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
     }
 
 
-    private Response sendJsonErrorResponse(final String tokenMessage) {
+    private Response sendJsonErrorResponse(final String errorMessage) {
 
         try {
 
-            final String[] parts = tokenMessage.split(":");
+            // error message is in form error_token:line:column
+            final String[] parts = errorMessage.split(":");
             final int line = Integer.parseInt(parts[1]);
             final int column = Integer.parseInt(parts[2]);
             
@@ -90,7 +92,7 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
                     
         } catch (final Exception ex) {
 
-            LOGGER.log(System.Logger.Level.ERROR, "failed to get malformed JSON coordinates from token message: {0}", tokenMessage);
+            LOGGER.log(System.Logger.Level.ERROR, "failed to get malformed JSON coordinates from token message: {0}", errorMessage);
             return Response.status(Response.Status.BAD_REQUEST)
                     .type(MediaType.APPLICATION_JSON)
                     .entity(ErrorResponse.of(Response.Status.BAD_REQUEST, "container JSON parsing error"))
