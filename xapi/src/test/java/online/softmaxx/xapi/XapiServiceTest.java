@@ -19,7 +19,7 @@ class XapiServiceTest {
     @Test
     void testGreet() {
         String greeting = target
-                .path("/xapi/test/greeting")
+                .path("/xapi/greeting")
                 .request()
                 .get(String.class);
         assertThat(greeting, is("Hello"));
