@@ -25,28 +25,32 @@ public final class MessageResolver {
     }
 
     
-    // Resolves metadata configurations using type-safe MessageToken case routes.
+    // The exceptions are raised using a MessageBundleRow.token() method that 
+    // adds MessageToken.getValue():enumName prefix to the error message. When 
+    // checking the error message, we look for messageToken.getValue() prefix.
+    // such error messages are passed to this method. we extract the enumName 
+    // from the error message and use it to get the enum code and keyName. 
      
-    public static MessageDetail resolve(final MessageToken messageToken, 
+    public static MessageDetail resolve(final MessageToken token, 
         final String errorMessage, 
         final Locale locale) {
 
-        if (messageToken == null || errorMessage == null) {
+        if (token == null || errorMessage == null) {
             return new MessageDetail(SysErrorCode.UNKNOWN_FAILURE.getCode(),errorMessage);
         }
 
         try {
 
-            final String enumName = errorMessage.substring(messageToken.name().length() + 1);
+            final String enumName = errorMessage.substring(token.getValue().length() + 1);
             final MessageBundleRow bundleRow;
 
-            switch (messageToken) {
-                case __APP_ERR__ -> {
+            switch (token) {
+                case APP_ERR -> {
                     bundleRow = AppErrorCode.valueOf(enumName);
                     return new MessageDetail(bundleRow.getCode(), getRawMessage(bundleRow.getKeyName(), locale));
                 }
 
-                case __SYS_ERR__ -> {
+                case SYS_ERR-> {
                     bundleRow = SysErrorCode.valueOf(enumName);
                     return new MessageDetail(bundleRow.getCode(), getRawMessage(bundleRow.getKeyName(), locale));
                 }

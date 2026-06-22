@@ -27,7 +27,7 @@ public enum AppErrorCode implements MessageBundleRow {
 
     @Override
     public String token() {
-        return MessageToken.__APP_ERR__.name() + ":" + this.name();
+        return MessageToken.APP_ERR.getValue() + ":" + this.name();
     }
 
 }

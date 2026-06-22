@@ -22,7 +22,7 @@ public enum SysErrorCode implements MessageBundleRow {
 
     @Override
     public String token() {
-        return MessageToken.__SYS_ERR__.name() + ":" + this.name();
+        return MessageToken.SYS_ERR.getValue() + ":" + this.name();
     }
 }
 

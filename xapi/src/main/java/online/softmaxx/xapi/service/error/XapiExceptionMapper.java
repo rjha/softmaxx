@@ -61,7 +61,8 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
 
             for (final MessageToken token: MessageToken.values()) {
 
-                final String expectedMatchString = token.name() + ":";
+                final String expectedMatchString = token.getValue() + ":";
+                
                 if (errorMessage.startsWith(expectedMatchString)) {
                     final MessageDetail details = MessageResolver.resolve(token, errorMessage, clientLocale);
                     finalMessage = String.format("[%s] %s", details.code(), details.message());
