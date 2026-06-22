@@ -10,6 +10,7 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import jakarta.ws.rs.core.HttpHeaders;
 import online.softmaxx.xapi.bundle.*;
+import online.softmaxx.xapi.db.DuplicateKeyException;
 
 
 @Provider
@@ -19,8 +20,8 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
     
     // Exception => http status code mapping 
     private static final Map<Class<? extends Exception>, Response.Status> EXCEPTION_STATUS_MAP = Map.of(
-        IllegalArgumentException.class, Response.Status.BAD_REQUEST 
-        
+        IllegalArgumentException.class, Response.Status.BAD_REQUEST,
+        DuplicateKeyException.class, Response.Status.CONFLICT
     );
 
     @Context
@@ -48,7 +49,7 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
         final String errorMessage = exception.getMessage();
         
         // Check if the exception is because of container Json parsing errors
-        if (errorMessage != null && errorMessage.startsWith(HelidonMediaInterceptor.JSON_ERROR_TOKEN)) {
+        if (errorMessage != null && errorMessage.startsWith(MessageToken.JSON_ERROR.getValue())) {
             return sendJsonErrorResponse(errorMessage);
         }
 
@@ -62,7 +63,7 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
             for (final MessageToken token: MessageToken.values()) {
 
                 final String expectedMatchString = token.getValue() + ":";
-                
+
                 if (errorMessage.startsWith(expectedMatchString)) {
                     final MessageDetail details = MessageResolver.resolve(token, errorMessage, clientLocale);
                     finalMessage = String.format("[%s] %s", details.code(), details.message());

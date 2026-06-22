@@ -3,6 +3,7 @@ package online.softmaxx.xapi.dao;
 import online.softmaxx.xapi.util.KeyGenerator;
 import online.softmaxx.xapi.service.model.*;
 import online.softmaxx.xapi.auth.PasswordService;
+import online.softmaxx.xapi.bundle.SysErrorCode;
 import online.softmaxx.xapi.db.*;
 
 import java.sql.Connection;
@@ -55,14 +56,24 @@ public final class UserDao {
             return userKey;
 
         } catch (final SQLException e) {
-            LOGGER.log(System.Logger.Level.ERROR, "Database interaction failed during user creation operation", e);
+
+            LOGGER.log(System.Logger.Level.ERROR, "Fatal Database error during user creation", e);
             
             if ("23505".equals(e.getSQLState())) {
-                final String specificField = e.getMessage().contains("e164_phone") ? "Phone number" : "Email";
-                throw new DuplicateKeyException(specificField + " is already in use.");
+
+                final String errorMessage = e.getMessage();
+
+                if(errorMessage.contains("e164_phone")) {
+                    throw new DuplicateKeyException(SysErrorCode.DUPLICATE_PHONE.token());
+                }
+
+                if(errorMessage.contains("email")) {
+                    throw new DuplicateKeyException(SysErrorCode.DUPLICATE_EMAIL.token());
+                }
+                
             }
             
-            throw new DataAccessException("Database operation failed unexpectedly.", e);
+            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
         }
     }
 }

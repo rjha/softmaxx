@@ -10,6 +10,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
+import online.softmaxx.xapi.bundle.MessageToken;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -44,8 +46,7 @@ public final class HelidonMediaInterceptor implements MessageBodyReader<Object> 
 
     private static final System.Logger LOGGER = System.getLogger(HelidonMediaInterceptor.class.getName());
     private final ObjectMapper mapper = new ObjectMapper();
-    public static final String JSON_ERROR_TOKEN = "__JSON_ERROR__";
-
+    
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
         return MediaType.APPLICATION_JSON_TYPE.isCompatible(mediaType);
@@ -80,9 +81,12 @@ public final class HelidonMediaInterceptor implements MessageBodyReader<Object> 
         final com.fasterxml.jackson.core.JsonLocation location = ex.getLocation();
         
         if (location != null && location.getLineNr() > 0) {
-            throw new IllegalArgumentException(String.format("%s:%d:%d", JSON_ERROR_TOKEN, location.getLineNr(), location.getColumnNr()));
+            throw new IllegalArgumentException(String.format("%s:%d:%d", 
+                MessageToken.JSON_ERROR.getValue(), 
+                location.getLineNr(), 
+                location.getColumnNr()));
         }
 
-        throw new IllegalArgumentException(String.format("%s:1:1", JSON_ERROR_TOKEN));
+        throw new IllegalArgumentException(String.format("%s:1:1", MessageToken.JSON_ERROR.getValue()));
     }
 }
