@@ -23,6 +23,7 @@ public class XapiApplication extends Application {
             HelidonMediaInterceptor.class,
             XapiExceptionMapper.class,
             HelloService.class,
+            RootService.class,
             UserService.class
         );
     }
