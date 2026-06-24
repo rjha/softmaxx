@@ -3,10 +3,14 @@ package online.softmaxx.xapi.db;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+
+import online.softmaxx.xapi.util.HelidonConfig;
+
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Optional;
 
 public final class DatabaseManager {
 
@@ -18,31 +22,48 @@ public final class DatabaseManager {
         LOGGER.log(System.Logger.Level.INFO, "🚀 initializing HikariCP connection pool ...");
         
         try {
-            // 1. Fetch the global MicroProfile configuration instance provider
-            final Config config = ConfigProvider.getConfig();
 
-            // 2. Read explicit connection targets with default fallbacks
-            final String host = config.getOptionalValue("db.host", String.class).orElse("localhost");
-            final int port = config.getOptionalValue("db.port", Integer.class).orElse(5432);
-            final String dbName = config.getOptionalValue("db.name", String.class).orElse("xapi_db");
-            final String username = config.getValue("db.username", String.class);
-            final String password = config.getValue("db.password", String.class);
+            final Optional<String> dbHostOpt = HelidonConfig.DB_HOST.get();
+            final Optional<String> dbPortOpt = HelidonConfig.DB_PORT.get();
+            final Optional<String> dbNameOpt = HelidonConfig.DB_NAME.get();
+            final Optional<String> dbUsernameOpt = HelidonConfig.DB_USERNAME.get();
+            final Optional<String> dbPasswordOpt = HelidonConfig.DB_PASSWORD.get();
+
+            // mandatory parameters
+            if (dbUsernameOpt.isEmpty()) {
+                throw new IllegalStateException("helidon config db.username is missing.");
+            }
+
+            if (dbPasswordOpt.isEmpty()) {
+                throw new IllegalStateException("helidon config db.password is missing.");
+            }
+
+            final String host = dbHostOpt.orElse("localhost");
+            final int port = dbPortOpt.map(Integer::parseInt).orElse(5432);
+            final String dbName = dbNameOpt.orElse("xapi_db");
+            final String username = dbUsernameOpt.get(); 
+            final String password = dbPasswordOpt.get();  
 
             // Construct standard PostgreSQL native JDBC target routing string
             final String jdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", host, port, dbName);
 
-            // 3. Bind properties to the Hikari operational setup layer
+            // Bind properties to the Hikari operational setup layer
             final HikariConfig hikariConfig = new HikariConfig();
             hikariConfig.setJdbcUrl(jdbcUrl);
             hikariConfig.setUsername(username);
             hikariConfig.setPassword(password);
 
-            // 4. Load optimized connection pool tuning metrics
-            hikariConfig.setMaximumPoolSize(config.getOptionalValue("db.pool.max-size", Integer.class).orElse(10));
-            hikariConfig.setMinimumIdle(config.getOptionalValue("db.pool.min-idle", Integer.class).orElse(2));
-            hikariConfig.setIdleTimeout(config.getOptionalValue("db.pool.idle-timeout-ms", Long.class).orElse(30000L));
-            hikariConfig.setConnectionTimeout(config.getOptionalValue("db.pool.connection-timeout-ms", Long.class).orElse(2000L));
+            // Extract and Map Optional Connection Pool Tuning Parameters
+            final Optional<String> poolMaxOpt = HelidonConfig.DB_POOL_MAX_SIZE.get();
+            final Optional<String> poolMinIdleOpt = HelidonConfig.DB_POOL_MIN_IDLE.get();
+            final Optional<String> poolIdleTimeoutOpt = HelidonConfig.DB_POOL_IDLE_TIMEOUT_MS.get();
+            final Optional<String> poolConnTimeoutOpt = HelidonConfig.DB_POOL_CONNECTION_TIMEOUT_MS.get();
 
+            hikariConfig.setMaximumPoolSize(poolMaxOpt.map(Integer::parseInt).orElse(10));
+            hikariConfig.setMinimumIdle(poolMinIdleOpt.map(Integer::parseInt).orElse(2));
+            hikariConfig.setIdleTimeout(poolIdleTimeoutOpt.map(Long::parseLong).orElse(30000L));
+            hikariConfig.setConnectionTimeout(poolConnTimeoutOpt.map(Long::parseLong).orElse(2000L));
+            
             // Recommended performance optimizations for PostgreSQL drivers
             hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
             hikariConfig.addDataSourceProperty("prepStmtCacheSize", "250");
