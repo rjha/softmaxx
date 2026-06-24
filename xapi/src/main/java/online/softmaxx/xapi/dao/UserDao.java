@@ -9,7 +9,9 @@ import online.softmaxx.xapi.db.*;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Objects;
 
 
 public final class UserDao {
@@ -112,6 +114,26 @@ public final class UserDao {
             throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
         }
     }
+
+    public static boolean phoneExists(final String e164Phone) {
+
+        Objects.requireNonNull(e164Phone, "E164 phone parameter cannot be null");
+        final String sql = "SELECT 1 FROM xapi_user WHERE e164_phone = ? LIMIT 1;";
+        
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, e164Phone);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next(); // Returns true if a row is returned
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(System.Logger.Level.ERROR, "Database error during phone lookup", e);
+            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
+        }
+    }
+
 
 }
 

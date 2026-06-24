@@ -7,7 +7,8 @@ public enum SysErrorCode implements MessageBundleRow {
     DATABASE_CRASH("DB-500", "DB_GENERIC"),
     DUPLICATE_PHONE("DB-201", "DB_DUP_PHONE"),
     DUPLICATE_EMAIL("DB-202", "DB_DUP_EMAIL"),
-    UNKNOWN_FAILURE("SYS-500", "SYS_UNEXPECTED");
+    UNKNOWN_FAILURE("SYS-500", "SYS_UNEXPECTED"),
+    TOO_MANY_REQUESTS("SYS-409", "SYS_TOO_MANY_REQUESTS");
 
     private final String code;
     private final String keyName;

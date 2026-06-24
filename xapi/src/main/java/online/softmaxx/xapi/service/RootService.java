@@ -14,9 +14,10 @@ import java.util.Map;
 
 import java.security.KeyFactory;
 import java.util.Base64;
-
+import online.softmaxx.xapi.dao.UserDao;
 import online.softmaxx.xapi.service.model.PhoneRecord;
 import online.softmaxx.xapi.service.otp.OtpType;
+import online.softmaxx.xapi.service.otp.OtpDao;
 import online.softmaxx.xapi.service.otp.OtpRequestParam;
 import online.softmaxx.xapi.service.otp.OtpTokenFactory;
 
@@ -95,32 +96,28 @@ public class RootService {
             throw new IllegalArgumentException("Request body cannot be null or empty.");
         }
 
-        // 1. Initialise validated PhoneRecord domain model
         final PhoneRecord phoneRecord = PhoneRecord.create(param);
+        final String targetE164 = phoneRecord.e164Phone();
+        final boolean isRegisteredUser = UserDao.phoneExists(targetE164);
 
-        // 2. Determine target configuration (Example: 60 seconds expiration for Login)
-        final OtpType designatedType = new OtpType.Numeric6Digit("SMS_TEMPLATE_LOGIN_V1", 60);
+        if (isRegisteredUser) {
 
-        // 3. Request a token from the Factory based on the chosen type
-        final String secureToken = OtpTokenFactory.generate(designatedType);
-        
-        // 4. Calculate database expiry timestamp dynamically using the OtpType TTL
-        // final long expireOnEpochSeconds = (System.currentTimeMillis() / 1000) + designatedType.timeToLiveSeconds();
+            final OtpType designatedType = new OtpType.Numeric6Digit(
+            "SMS_TEMPLATE_LOGIN_V1", 
+            60);
+            final String secureToken = OtpTokenFactory.generate(designatedType);
+            OtpDao.saveOtpToken(phoneRecord, secureToken, designatedType);
 
-        // Ready to pass to DAO layer in the next step
-        System.out.printf("DAO Data Check -> Country: %s, Phone: %s, Token: %s, template:%s, TTL: %d%n",
-                phoneRecord.countryCode(), 
-                phoneRecord.phoneNumber(), 
-                secureToken, 
-                designatedType.templateId(),
-                designatedType.timeToLiveSeconds());
+        } else {
+            LOGGER.log(System.Logger.Level.INFO, "user is not registered...");
+        }
         
         return Response.status(Response.Status.ACCEPTED)
                 .entity(Map.of(
-                    "status", "success",
-                    "message", "OTP generated successfully."
-                )).build();
-                
+                        "status", "success",
+                        "message", "Please check your registered phone number for OTP"))
+                .build();
+
     }
 
 }
