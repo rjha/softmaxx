@@ -5,19 +5,33 @@ package online.softmaxx.xapi.service;
 import io.helidon.security.jwt.Jwt;
 import io.helidon.security.jwt.SignedJwt;
 // Contains the ALG_RS256 static constant string
-import io.helidon.security.jwt.jwk.JwkRSA; 
+import io.helidon.security.jwt.jwk.JwkRSA;
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
+import online.softmaxx.xapi.util.HelidonConfig;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Optional;;
 
 public final class JwtProvider {
 
     private static final System.Logger LOGGER = System.getLogger(JwtProvider.class.getName());
     private static final long EXPIRATION_PERIOD_SECONDS = 86400L; // 24 Hours
+
+    
+    private static final String JWT_PRIVATE_KEY_PATH = ".keys/xapi_dev_rsa.key";
+    private static final String JWT_PRIVATE_KEY_NAME = "xapi_dev_rsa.key";
+    private static final String JWT_PUBLIC_KEY_PATH = "/xapi_dev_rsa.pub";
+    private static final String JWT_PUBLIC_KEY_NAME = "xapi_dev_rsa.pub";
 
     private JwtProvider() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
@@ -27,6 +41,8 @@ public final class JwtProvider {
     // Generates a fully signed, asymmetric specification-compliant 
     // MicroProfile JWT string.
     public static String generateToken(final String userKey) {
+
+        
         LOGGER.log(System.Logger.Level.INFO, "Generating signed asymmetric JWT for subject: {0}", userKey);
         
         final Instant currentTime = Instant.now();
@@ -46,7 +62,7 @@ public final class JwtProvider {
         try {
 
             // 2. Read private key file securely
-            final String rawContent = Files.readString(Paths.get(".keys/helidon4.pem"));
+            final String rawContent = Files.readString(Paths.get(JWT_PRIVATE_KEY_PATH));
             
             final String keyContent = rawContent
                     .replace("-----BEGIN PRIVATE KEY-----", "")
@@ -63,7 +79,7 @@ public final class JwtProvider {
             // 3. Build the asymmetric JWK signature token descriptor
             final JwkRSA jwk = JwkRSA.builder()
                     .privateKey(rsaPrivateKey)
-                    .keyId("helidon4.pem")
+                    .keyId(JWT_PRIVATE_KEY_NAME)
                     .build();
 
             // 4. Construct and return the signed three-part base64 string payload
@@ -72,7 +88,61 @@ public final class JwtProvider {
 
         } catch (final Exception e) {
             LOGGER.log(System.Logger.Level.ERROR, "Root signature failure intercepted inside JwtProvider", e);
-            throw new RuntimeException("Failed to secure and cryptographically sign authentication payload string.", e);
+            throw new RuntimeException("Failed to secure and cryptographically sign authentication payload", e);
         }
+
+    }
+
+    public static JsonObject getPublicKey() throws IOException {
+
+        // public key is part of the classpath 
+        try (final InputStream is = UserService.class.getResourceAsStream(JWT_PUBLIC_KEY_PATH)) {
+            if (is == null) {
+                throw new IllegalStateException("JWT public key asset missing from classpath: " + JWT_PUBLIC_KEY_PATH);
+            }
+
+            final String rawContent = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            final String keyContent = rawContent
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s+", "");
+
+            final byte[] publicKeyBytes = Base64.getDecoder().decode(keyContent);
+            final X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+            final KeyFactory kf = KeyFactory.getInstance("RSA");
+            final java.security.interfaces.RSAPublicKey rsaPublicKey = 
+                    (java.security.interfaces.RSAPublicKey) kf.generatePublic(keySpec);
+
+            // 1. Extract the raw BigInteger byte parameters natively for Base64URL transformation
+            // This isolates the modulus (n) and public exponent (e) parameters required by RFC 7517
+            final String modulus = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(rsaPublicKey.getModulus().toByteArray());
+            final String exponent = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(rsaPublicKey.getPublicExponent().toByteArray());
+
+            // 2. Declaratively assemble the standard RFC 7517 JSON structure 
+            // using clean Jakarta JSON builders
+            final JsonObject jwkJson = Json.createObjectBuilder()
+                    .add("kty", "RSA")
+                    .add("alg", "RS256")
+                    .add("use", "sig")
+                    .add("kid", JWT_PUBLIC_KEY_NAME)
+                    .add("n", modulus)
+                    .add("e", exponent)
+                    .build();
+
+            // 3. Wrap inside a standard public "keys" array object
+            final JsonObject jwksResponse = Json.createObjectBuilder()
+                    .add("keys", Json.createArrayBuilder().add(jwkJson))
+                    .build();
+
+            // 4. Return the fully compliant JsonObject structure directly to the network channel
+            return jwksResponse ;
+
+        } catch (final Exception e) {
+            LOGGER.log(System.Logger.Level.ERROR, "Failed to compile public JWKS key", e);
+            throw new IOException("unable to compile public JWKS key");
+        }
+
     }
 }
