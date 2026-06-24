@@ -3,20 +3,19 @@ package online.softmaxx.xapi.service.otp;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Objects;
 
 import online.softmaxx.xapi.bundle.AppErrorCode;
 import online.softmaxx.xapi.bundle.SysErrorCode;
 import online.softmaxx.xapi.service.model.PhoneRecord;
-import online.softmaxx.xapi.db.DataAccessException;
-import online.softmaxx.xapi.db.DatabaseManager; 
+ 
 
 
 public final class OtpDao {
 
     private OtpDao() {} 
-    private static final System.Logger LOGGER = System.getLogger(OtpDao.class.getName());
     private static final long SMS_COOLDOWN_SECONDS = 60;
 
     /**
@@ -27,7 +26,10 @@ public final class OtpDao {
      * @param otpType      The configuration context defining parameters like timeToLiveSeconds
      */
 
-    public static void saveOtpToken(final PhoneRecord phoneRecord, final String token, final OtpType otpType) {
+    public static void saveOtpToken(final Connection conn, 
+        final PhoneRecord phoneRecord, 
+        final String token, 
+        final OtpType otpType) throws SQLException {
 
         Objects.requireNonNull(phoneRecord, "PhoneRecord cannot be null");
         Objects.requireNonNull(otpType, "OtpType cannot be null");
@@ -56,8 +58,7 @@ public final class OtpDao {
             WHERE EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - otp_token.updated_at)) >= ?;
             """;
 
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             
             ps.setString(1, phoneRecord.phoneNumber());
             ps.setString(2, phoneRecord.countryCode());
@@ -73,10 +74,60 @@ public final class OtpDao {
                 throw new IllegalArgumentException(SysErrorCode.TOO_MANY_REQUESTS.token());
             }
 
-
-        } catch (SQLException e) {
-            LOGGER.log(System.Logger.Level.ERROR, "Database error during otp token save", e);
-            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
-        }
+        } 
     }
+
+    
+    public static boolean validateToken(final Connection conn, 
+        final OtpVerificationRequest verificationRequest) throws SQLException {
+
+        Objects.requireNonNull(verificationRequest, "OtpRequest cannot be null");
+
+        // Added ORDER BY id DESC to prioritize 
+        // the latest generated token record
+        final String sql = """
+            SELECT 1 FROM otp_token 
+            WHERE e164_phone = ? 
+            AND token = ? 
+            AND expire_on > EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+            ORDER BY id DESC
+            LIMIT 1;
+            """;
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, verificationRequest.phoneRecord().e164Phone());
+            ps.setString(2, verificationRequest.token());
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next(); 
+            }
+
+        }
+
+    }
+
+    // Invalidates a consumed token by setting its expiration timestamp to 
+    // the past. This securely locks out replay attacks while avoiding 
+    // expensive row deletions. 
+    public static void resetToken(final Connection conn, final String e164Phone) throws SQLException {
+
+        java.util.Objects.requireNonNull(e164Phone, "E164 phone parameter cannot be null");
+
+        // Sets the expire_on timestamp to 0 (January 1st, 1970), 
+        // instantly failing future "expire_on > NOW" checks.
+        final String sql = """
+            UPDATE otp_token 
+            SET expire_on = 0, 
+                updated_on_at = CURRENT_TIMESTAMP 
+            WHERE e164_phone = ?;
+            """;
+
+        try (java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, e164Phone);
+            ps.executeUpdate();
+        }
+        
+    }
+
 }

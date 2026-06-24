@@ -4,15 +4,11 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
 import java.io.IOException;
 import java.util.Map;
-import online.softmaxx.xapi.dao.UserDao;
+import online.softmaxx.xapi.dao.UserTransaction;
 import online.softmaxx.xapi.service.model.PhoneRecord;
-import online.softmaxx.xapi.service.otp.OtpType;
-import online.softmaxx.xapi.service.otp.OtpDao;
-import online.softmaxx.xapi.service.otp.OtpRequestParam;
-import online.softmaxx.xapi.service.otp.OtpTokenFactory;
+import online.softmaxx.xapi.service.otp.*;
 
 
 
@@ -51,7 +47,7 @@ public class RootService {
 
         final PhoneRecord phoneRecord = PhoneRecord.create(param);
         final String targetE164 = phoneRecord.e164Phone();
-        final boolean isRegisteredUser = UserDao.phoneExists(targetE164);
+        final boolean isRegisteredUser = UserTransaction.phoneExists(targetE164);
 
         if (isRegisteredUser) {
 
@@ -59,7 +55,7 @@ public class RootService {
             "SMS_TEMPLATE_LOGIN_V1", 
             60);
             final String secureToken = OtpTokenFactory.generate(designatedType);
-            OtpDao.saveOtpToken(phoneRecord, secureToken, designatedType);
+            OtpTransaction.saveOtpToken(phoneRecord, secureToken, designatedType);
 
         } else {
             LOGGER.log(System.Logger.Level.INFO, "user is not registered...");
@@ -73,4 +69,59 @@ public class RootService {
 
     }
 
+
+    @POST
+    @Path("/otp/login")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response verifyOtp(final OtpVerificationParam param) {
+
+        if (param == null) {
+            throw new IllegalArgumentException("OTP Verification request parameters cannot be null.");
+        }
+
+        final OtpVerificationRequest verifiedRequest = OtpVerificationRequest.create(param);
+        final String targetE164 = verifiedRequest.phoneRecord().e164Phone();
+
+        if (!UserTransaction.phoneExists(targetE164)) {
+            // @todo add  targetE164 to error message 
+            // DEFENSIVE PATTERN: Return an identical error schema 
+            // to prevent account harvesting scripts
+            return sendOtpErrorResponse();
+        }
+
+        final boolean isTokenValid = OtpTransaction.validateToken(verifiedRequest);
+        if (!isTokenValid) {
+            return sendOtpErrorResponse();
+        }
+
+        OtpTransaction.resetToken(targetE164);
+        final String associatedUserKey = UserTransaction.getUserKeyByPhone(targetE164);
+
+        // Issue a signed asymmetric JWT access token 
+        // via your Provider utility class
+        final String webTokenString = JwtProvider.generateToken(associatedUserKey);
+
+        // Return standard authentication completion payload signature contract
+        return Response.status(Response.Status.OK)
+                .entity(Map.of(
+                    "status", "success",
+                    "message", "Verification code authorized successfully.",
+                    "token", webTokenString,
+                    "user_key", associatedUserKey
+                )).build();
+    }
+
+
+    private Response sendOtpErrorResponse() {
+        return Response.status(Response.Status.BAD_REQUEST)
+                .type(MediaType.APPLICATION_JSON)
+                .entity(Map.of(
+                    "status", "error",
+                    "code", "400",
+                    "message", "The verification credentials are invalid or have expired."
+                )).build();
+    }
+
 }
+

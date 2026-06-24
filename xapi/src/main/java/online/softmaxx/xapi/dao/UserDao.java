@@ -4,9 +4,6 @@ import online.softmaxx.xapi.util.KeyGenerator;
 import online.softmaxx.xapi.service.model.*;
 import online.softmaxx.xapi.auth.PasswordService;
 import online.softmaxx.xapi.bundle.AppErrorCode;
-import online.softmaxx.xapi.bundle.SysErrorCode;
-import online.softmaxx.xapi.db.*;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -22,7 +19,7 @@ public final class UserDao {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
     }
 
-    public static String registerNewUser(final NewUserRequest model) {
+    public static String registerNewUser(final Connection conn, final NewUserRequest model) throws SQLException {
 
         final String userKey = "USR-" + KeyGenerator.generateToken();
         final String cleanCountry = model.countryCode().trim();
@@ -36,9 +33,7 @@ public final class UserDao {
                         locale_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ;
                 """;
         
-        try (final Connection conn = DatabaseManager.getConnection();
-
-            final PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (final PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, userKey);
             pstmt.setString(2, model.userName().trim());
             pstmt.setString(3, passwordHash);
@@ -58,35 +53,14 @@ public final class UserDao {
             LOGGER.log(System.Logger.Level.INFO, "User record added. Key: {0}", userKey);
             return userKey;
 
-        } catch (final SQLException e) {
-
-            LOGGER.log(System.Logger.Level.ERROR, "Fatal Database error during user creation", e);
-            
-            if ("23505".equals(e.getSQLState())) {
-
-                final String errorMessage = e.getMessage();
-
-                if(errorMessage.contains("e164_phone")) {
-                    throw new DuplicateKeyException(SysErrorCode.DUPLICATE_PHONE.token());
-                }
-
-                if(errorMessage.contains("email")) {
-                    throw new DuplicateKeyException(SysErrorCode.DUPLICATE_EMAIL.token());
-                }
-                
-            }
-            
-            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
         }
     }
 
     
-    public static String authenticateUser(final UserLoginRequest model) {
+    public static String authenticateUser(final Connection conn, final UserLoginRequest model) throws SQLException {
 
         final String sql = "SELECT user_key, password_hash FROM xapi_user WHERE e164_phone = ?";
-
-        try (final java.sql.Connection conn = DatabaseManager.getConnection();
-             final java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (final java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 
             pstmt.setString(1, model.e164Phone());
             
@@ -109,31 +83,48 @@ public final class UserDao {
             // to prevent identity scraping vulnerabilities
             throw new IllegalArgumentException(AppErrorCode.INVALID_CREDENTIALS.token());
 
-        } catch (final java.sql.SQLException e) {
-            LOGGER.log(System.Logger.Level.ERROR, "Database error during authentication sequence", e);
-            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
         }
+
     }
 
-    public static boolean phoneExists(final String e164Phone) {
+    public static boolean phoneExists(final Connection conn, final String e164Phone) throws SQLException {
 
         Objects.requireNonNull(e164Phone, "E164 phone parameter cannot be null");
         final String sql = "SELECT 1 FROM xapi_user WHERE e164_phone = ? LIMIT 1;";
         
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             
             ps.setString(1, e164Phone);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next(); // Returns true if a row is returned
             }
 
-        } catch (SQLException e) {
-            LOGGER.log(System.Logger.Level.ERROR, "Database error during phone lookup", e);
-            throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), e);
         }
+
     }
 
+    
+    public static String getUserKeyByPhone(final Connection conn, final String e164Phone) throws SQLException {
+
+        Objects.requireNonNull(e164Phone, "E164 phone parameter cannot be null");
+        final String sql = "SELECT user_key FROM xapi_user WHERE e164_phone = ?;";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, e164Phone);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+
+                if (!rs.next()) {
+                    throw new IllegalStateException("user mapping missing for " + e164Phone);
+                }
+                
+                return rs.getString("user_key");
+                
+            }
+
+        }
+    }
 
 }
 

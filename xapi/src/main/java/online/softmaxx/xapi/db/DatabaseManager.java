@@ -3,14 +3,11 @@ package online.softmaxx.xapi.db;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-
 import online.softmaxx.xapi.util.HelidonConfig;
-
-import org.eclipse.microprofile.config.Config;
-import org.eclipse.microprofile.config.ConfigProvider;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Optional;
+
 
 public final class DatabaseManager {
 
@@ -82,16 +79,38 @@ public final class DatabaseManager {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
     }
 
-    /**
-     * Obtains a thread-safe pooled connection from the active Hikari cluster.
-     */
+    
+    // Obtains a thread-safe pooled connection 
+    // from the active Hikari cluster.
     public static Connection getConnection() throws SQLException {
         return DATA_SOURCE.getConnection();
     }
 
-    /**
-     * Gracefully shuts down the connection pool cluster during app termination.
-     */
+    public static void rollback(final Connection conn) {
+        if (conn != null) {
+            try {
+                conn.rollback();
+            } catch (final SQLException ex) {
+                LOGGER.log(System.Logger.Level.ERROR, "database transaction rollback failed", ex);
+            }
+        }
+    }
+
+    public static void release(final Connection connx) {
+
+        if (connx != null) {
+            try {
+                connx.close();
+            } catch (final SQLException ex) {
+                LOGGER.log(System.Logger.Level.ERROR, "error releasing Hikari connection");
+            }
+        }
+
+    }
+
+   
+    // Gracefully shuts down the connection pool 
+    // cluster during app termination.
     public static void shutdown() {
         if (DATA_SOURCE != null && !DATA_SOURCE.isClosed()) {
             LOGGER.log(System.Logger.Level.INFO, "shutting down HikariCP database connectivity resources...");

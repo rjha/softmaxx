@@ -8,7 +8,7 @@ import java.util.Map;
 
 import online.softmaxx.xapi.service.param.*;
 import online.softmaxx.xapi.service.model.*;
-import online.softmaxx.xapi.dao.UserDao;
+import online.softmaxx.xapi.dao.UserTransaction;
 
 
 
@@ -27,7 +27,7 @@ public class UserService {
         }
 
         final NewUserRequest userModel = NewUserRequest.create(param);
-        final String systemUserKey = UserDao.registerNewUser(userModel);
+        final String systemUserKey = UserTransaction.registerNewUser(userModel);
         
         return Response.status(Response.Status.CREATED)
                 .entity(Map.of(
@@ -49,8 +49,8 @@ public class UserService {
         }
 
         final UserLoginRequest loginRequest = UserLoginRequest.create(param);
-        final String verifiedUserKey = UserDao.authenticateUser(loginRequest);
-
+        final String verifiedUserKey = UserTransaction.authenticateUser(loginRequest);
+        
         // Issue cryptographically signed token string
         final String webTokenString = JwtProvider.generateToken(verifiedUserKey);
 
