@@ -28,11 +28,6 @@ public final class JwtProvider {
     private static final long EXPIRATION_PERIOD_SECONDS = 86400L; // 24 Hours
 
     
-    private static final String JWT_PRIVATE_KEY_PATH = ".keys/xapi_dev_rsa.key";
-    private static final String JWT_PRIVATE_KEY_NAME = "xapi_dev_rsa.key";
-    private static final String JWT_PUBLIC_KEY_PATH = "/xapi_dev_rsa.pub";
-    private static final String JWT_PUBLIC_KEY_NAME = "xapi_dev_rsa.pub";
-
     private JwtProvider() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
     }
@@ -42,9 +37,17 @@ public final class JwtProvider {
     // MicroProfile JWT string.
     public static String generateToken(final String userKey) {
 
+        final Optional<String> privateKeyPath = HelidonConfig.JWT_PRIVATE_KEY_PATH.get();
+        final Optional<String> privateKeyName = HelidonConfig.JWT_PRIVATE_KEY_NAME.get();
         
-        LOGGER.log(System.Logger.Level.INFO, "Generating signed asymmetric JWT for subject: {0}", userKey);
-        
+        if (privateKeyPath.isEmpty()) {
+            throw new IllegalStateException("helidon config JWT_PRIVATE_KEY_PATH is missing.");
+        }
+
+        if (privateKeyName.isEmpty()) {
+            throw new IllegalStateException("helidon config JWT_PRIVATE_KEY_NAME is missing.");
+        }
+ 
         final Instant currentTime = Instant.now();
         final Instant expiryTime = currentTime.plusSeconds(EXPIRATION_PERIOD_SECONDS);
 
@@ -62,7 +65,7 @@ public final class JwtProvider {
         try {
 
             // 2. Read private key file securely
-            final String rawContent = Files.readString(Paths.get(JWT_PRIVATE_KEY_PATH));
+            final String rawContent = Files.readString(Paths.get(privateKeyPath.get()));
             
             final String keyContent = rawContent
                     .replace("-----BEGIN PRIVATE KEY-----", "")
@@ -79,7 +82,7 @@ public final class JwtProvider {
             // 3. Build the asymmetric JWK signature token descriptor
             final JwkRSA jwk = JwkRSA.builder()
                     .privateKey(rsaPrivateKey)
-                    .keyId(JWT_PRIVATE_KEY_NAME)
+                    .keyId(privateKeyName.get())
                     .build();
 
             // 4. Construct and return the signed three-part base64 string payload
@@ -95,10 +98,21 @@ public final class JwtProvider {
 
     public static JsonObject getPublicKey() throws IOException {
 
+        final Optional<String> publicKeyPath = HelidonConfig.JWT_PUBLIC_KEY_PATH.get();
+        final Optional<String> publicKeyName = HelidonConfig.JWT_PUBLIC_KEY_NAME.get();
+
+        if (publicKeyPath.isEmpty()) {
+            throw new IllegalStateException("helidon config JWT_PUBLIC_KEY_PATH is missing.");
+        }
+
+        if (publicKeyName.isEmpty()) {
+            throw new IllegalStateException("helidon config JWT_PUBLIC_KEY_NAME is missing.");
+        }
+
         // public key is part of the classpath 
-        try (final InputStream is = UserService.class.getResourceAsStream(JWT_PUBLIC_KEY_PATH)) {
+        try (final InputStream is = UserService.class.getResourceAsStream(publicKeyPath.get())) {
             if (is == null) {
-                throw new IllegalStateException("JWT public key asset missing from classpath: " + JWT_PUBLIC_KEY_PATH);
+                throw new IllegalStateException("JWT public key asset missing from classpath: " + publicKeyPath.get());
             }
 
             final String rawContent = new String(is.readAllBytes(), StandardCharsets.UTF_8);
@@ -126,7 +140,7 @@ public final class JwtProvider {
                     .add("kty", "RSA")
                     .add("alg", "RS256")
                     .add("use", "sig")
-                    .add("kid", JWT_PUBLIC_KEY_NAME)
+                    .add("kid", publicKeyName.get())
                     .add("n", modulus)
                     .add("e", exponent)
                     .build();
