@@ -8,7 +8,7 @@ import io.helidon.security.jwt.SignedJwt;
 import io.helidon.security.jwt.jwk.JwkRSA;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
-import online.softmaxx.xapi.util.HelidonConfig;
+import online.softmaxx.xapi.util.ApplicationConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,8 +37,8 @@ public final class JwtProvider {
     // MicroProfile JWT string.
     public static String generateToken(final String userKey) {
 
-        final Optional<String> privateKeyPath = HelidonConfig.JWT_PRIVATE_KEY_PATH.get();
-        final Optional<String> privateKeyName = HelidonConfig.JWT_PRIVATE_KEY_NAME.get();
+        final Optional<String> privateKeyPath = ApplicationConfig.JWT_PRIVATE_KEY_PATH.get();
+        final Optional<String> privateKeyName = ApplicationConfig.JWT_PRIVATE_KEY_NAME.get();
         
         if (privateKeyPath.isEmpty()) {
             throw new IllegalStateException("helidon config JWT_PRIVATE_KEY_PATH is missing.");
@@ -98,8 +98,8 @@ public final class JwtProvider {
 
     public static JsonObject getPublicKey() throws IOException {
 
-        final Optional<String> publicKeyPath = HelidonConfig.JWT_PUBLIC_KEY_PATH.get();
-        final Optional<String> publicKeyName = HelidonConfig.JWT_PUBLIC_KEY_NAME.get();
+        final Optional<String> publicKeyPath = ApplicationConfig.JWT_PUBLIC_KEY_PATH.get();
+        final Optional<String> publicKeyName = ApplicationConfig.JWT_PUBLIC_KEY_NAME.get();
 
         if (publicKeyPath.isEmpty()) {
             throw new IllegalStateException("helidon config JWT_PUBLIC_KEY_PATH is missing.");

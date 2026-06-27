@@ -3,7 +3,7 @@ package online.softmaxx.xapi.db;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import online.softmaxx.xapi.util.HelidonConfig;
+import online.softmaxx.xapi.util.ApplicationConfig;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Optional;
@@ -20,11 +20,11 @@ public final class DatabaseManager {
         
         try {
 
-            final Optional<String> dbHostOpt = HelidonConfig.DB_HOST.get();
-            final Optional<String> dbPortOpt = HelidonConfig.DB_PORT.get();
-            final Optional<String> dbNameOpt = HelidonConfig.DB_NAME.get();
-            final Optional<String> dbUsernameOpt = HelidonConfig.DB_USERNAME.get();
-            final Optional<String> dbPasswordOpt = HelidonConfig.DB_PASSWORD.get();
+            final Optional<String> dbHostOpt = ApplicationConfig.DB_HOST.get();
+            final Optional<String> dbPortOpt = ApplicationConfig.DB_PORT.get();
+            final Optional<String> dbNameOpt = ApplicationConfig.DB_NAME.get();
+            final Optional<String> dbUsernameOpt = ApplicationConfig.DB_USERNAME.get();
+            final Optional<String> dbPasswordOpt = ApplicationConfig.DB_PASSWORD.get();
 
             // mandatory parameters
             if (dbUsernameOpt.isEmpty()) {
@@ -51,10 +51,10 @@ public final class DatabaseManager {
             hikariConfig.setPassword(password);
 
             // Extract and Map Optional Connection Pool Tuning Parameters
-            final Optional<String> poolMaxOpt = HelidonConfig.DB_POOL_MAX_SIZE.get();
-            final Optional<String> poolMinIdleOpt = HelidonConfig.DB_POOL_MIN_IDLE.get();
-            final Optional<String> poolIdleTimeoutOpt = HelidonConfig.DB_POOL_IDLE_TIMEOUT_MS.get();
-            final Optional<String> poolConnTimeoutOpt = HelidonConfig.DB_POOL_CONNECTION_TIMEOUT_MS.get();
+            final Optional<String> poolMaxOpt = ApplicationConfig.DB_POOL_MAX_SIZE.get();
+            final Optional<String> poolMinIdleOpt = ApplicationConfig.DB_POOL_MIN_IDLE.get();
+            final Optional<String> poolIdleTimeoutOpt = ApplicationConfig.DB_POOL_IDLE_TIMEOUT_MS.get();
+            final Optional<String> poolConnTimeoutOpt = ApplicationConfig.DB_POOL_CONNECTION_TIMEOUT_MS.get();
 
             hikariConfig.setMaximumPoolSize(poolMaxOpt.map(Integer::parseInt).orElse(10));
             hikariConfig.setMinimumIdle(poolMinIdleOpt.map(Integer::parseInt).orElse(2));

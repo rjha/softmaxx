@@ -1,13 +1,10 @@
 package online.softmaxx.xapi.util;
 
-// ConfigProvider is recommended for MP applications
-// since we are using CDI, we should pick micro profile 
-// config file  to store config rather than application.properties 
-// 
-import org.eclipse.microprofile.config.ConfigProvider;
+
+
 import java.util.Optional;
 
-public enum HelidonConfig {
+public enum ApplicationConfig {
     
     // JWT Security Infrastructure
     JWT_PRIVATE_KEY_PATH("app.jwt.private-key-path"),
@@ -27,8 +24,9 @@ public enum HelidonConfig {
     DB_POOL_CONNECTION_TIMEOUT_MS("db.pool.connection-timeout-ms");
     
     private final String propertyName;
+    private static final Provider PROVIDER = new Provider();
 
-    HelidonConfig(final String propertyName) {
+    ApplicationConfig(final String propertyName) {
         this.propertyName = propertyName;
     }
 
@@ -36,14 +34,26 @@ public enum HelidonConfig {
         return this.propertyName;
     }
 
-    // Resolves the property value from the Helidon configuration 
-    // context as an Optional.
-    // Returns Optional.empty() if the value is missing, empty, or blank.
     public Optional<String> get() {
-        return ConfigProvider.getConfig()
-                .getOptionalValue(this.propertyName, String.class)
-                .map(String::trim)
-                .filter(val -> !val.isEmpty());
+        return PROVIDER.instance.resolve(this.propertyName);
+    }
+
+    private static final class Provider {
+
+        private final IConfigProvider instance;
+
+        private Provider() {
+            
+            final String sysPath = System.getProperty("app.config.path");
+
+            if (sysPath != null && !sysPath.isBlank()) {
+                this.instance = new FileConfigProvider(sysPath);
+            } else {
+                this.instance = new HelidonConfigProvider();
+            }
+
+        }
+
     }
 
 }
