@@ -23,7 +23,7 @@ public class PgQueueWorker {
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable);
-        thread.setName("pgque-worker-" + thread.hashCode());
+        thread.setName("PGQUE-WORKER-" + thread.hashCode());
         thread.setDaemon(false); // Keeps the JVM process alive under systemd
         return thread;
     });
@@ -35,37 +35,37 @@ public class PgQueueWorker {
 
     private void start() {
         // Send ticker() every second
-        scheduler.scheduleAtFixedRate(this::executeTickerTask, 0, 1, TimeUnit.SECONDS);
+        scheduler.scheduleWithFixedDelay(this::executeTickerTask, 10, 1, TimeUnit.SECONDS);
         // Do Maintenance Loop every 30 seconds
-        scheduler.scheduleAtFixedRate(this::executeMaintenanceTask, 5, 30, TimeUnit.SECONDS);
+        scheduler.scheduleWithFixedDelay(this::executeMaintenanceTask, 30, 30, TimeUnit.SECONDS);
         LOGGER.log(System.Logger.Level.INFO, "🚀 starting PgQueueWorker process ...");
     }
 
     private void executeTickerTask() {
-        LOGGER.log(System.Logger.Level.INFO, "executing pgque ticker task...");
-        executeTransaction("SELECT pgque.ticker();", "PgQueue:Ticker:Task");
+        executeTransaction("SELECT pgque.ticker();", "PGQUE:TICKER:TASK");
     }
 
     private void executeMaintenanceTask() {
-        LOGGER.log(System.Logger.Level.INFO, "executing pgque maintenance tasks...");
         for (final String sqlCommand : MAINTENANCE_TASKS) {
-            executeTransaction(sqlCommand, "PgQueue:Maintenance:Task");
+            executeTransaction(sqlCommand, "PGQUE:MAINTENANCE:TASK");
         }
     }
 
     private void executeTransaction(final String sqlCommand, final String taskName) {
+
         Connection conn = null;
         
-        // FIX: The try block MUST sit at the absolute top of the scope wrapper to catch connection initialization errors.
+        // The try block MUST sit at the absolute top of the scope 
+        // The errors should be caught so they do not kill the thread
         try {
-            // If the pool is uninitialized or fails to connect, this error is now safely caught and won't kill the thread.
+
             conn = DatabaseManager.getConnection();
-            
             // Tx: start 
             conn.setAutoCommit(false);
             
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET search_path TO pgque, public;");
+                // stmt.execute("SELECT pg_sleep(random() * 0.05);");
                 stmt.execute(sqlCommand);
             }
             
@@ -74,24 +74,15 @@ public class PgQueueWorker {
             LOGGER.log(System.Logger.Level.DEBUG, "✅ executed task: " + taskName);
 
         } catch (final SQLException e) {
-            // Safely rollback if connection was established but SQL statements crashed
-            if (conn != null) {
-                DatabaseManager.rollback(conn);
-            }
+            DatabaseManager.rollback(conn);
             LOGGER.log(System.Logger.Level.ERROR, "❌ SQL Failure during task [" + taskName + "]", e);
             
         } catch (final Throwable ex) {
-            // CRITICAL DEFENCE: Catching Throwable covers NullPointerExceptions and any severe Runtime Errors
-            if (conn != null) {
-                DatabaseManager.rollback(conn);
-            }
+            DatabaseManager.rollback(conn);
             LOGGER.log(System.Logger.Level.ERROR, "❌ Unexpected execution error during task [" + taskName + "]", ex);
             
         } finally {
-            // Always cleanly return resources to HikariCP safely
-            if (conn != null) {
-                DatabaseManager.release(conn);
-            }
+            DatabaseManager.release(conn);
         }
     }
 }
