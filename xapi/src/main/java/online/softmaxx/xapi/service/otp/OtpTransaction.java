@@ -1,17 +1,19 @@
 package online.softmaxx.xapi.service.otp;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import online.softmaxx.xapi.bundle.SysErrorCode;
 import online.softmaxx.xapi.db.DataAccessException;
 import online.softmaxx.xapi.db.DatabaseManager;
 import online.softmaxx.xapi.service.model.PhoneRecord;
+import java.util.Objects;
 
 
 public class OtpTransaction {
     
 
-     private static final System.Logger LOGGER = System.getLogger(OtpTransaction.class.getName());
+    private static final System.Logger LOGGER = System.getLogger(OtpTransaction.class.getName());
     
     private OtpTransaction() {
         throw new UnsupportedOperationException("OtpTransaction class cannot be instantiated");
@@ -21,13 +23,25 @@ public class OtpTransaction {
         final String token, 
         final OtpType otpType) {
 
+        Objects.requireNonNull(phoneRecord, "PhoneRecord cannot be null");
+        Objects.requireNonNull(otpType, "OtpType cannot be null");
         Connection conn = null;
             
+        final String payload = "code: " + token + ",phone:" + phoneRecord.e164Phone();
+        final String workerQueueSql  = "SELECT pgque.send(?, ?);";
+
         try {
 
             conn = DatabaseManager.getConnection();
             conn.setAutoCommit(false);
             OtpDao.saveOtpToken(conn, phoneRecord, token, otpType);
+
+            try (PreparedStatement psQue = conn.prepareStatement(workerQueueSql)) {
+                psQue.setString(1, "xapi_tube");      
+                psQue.setString(2, payload);
+                psQue.executeQuery(); 
+            }
+
             conn.commit();
 
         } catch (final SQLException e) {
@@ -37,7 +51,9 @@ public class OtpTransaction {
 
         } catch(final Exception ex) {
             DatabaseManager.rollback(conn);
+            LOGGER.log(System.Logger.Level.ERROR, "Unexpected database failure inside saveOtpToken transaction", ex);
             throw new DataAccessException(SysErrorCode.DATABASE_CRASH.token(), ex);
+
         } finally {
             DatabaseManager.release(conn);
         }

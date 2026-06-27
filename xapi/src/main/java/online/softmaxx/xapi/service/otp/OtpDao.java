@@ -16,7 +16,7 @@ import online.softmaxx.xapi.service.model.PhoneRecord;
 public final class OtpDao {
 
     private OtpDao() {} 
-    private static final long SMS_COOLDOWN_SECONDS = 60;
+    private static final long SMS_COOLDOWN_SECONDS = 15;
 
     /**
      * Persists the generated token payload details into the otp_token PostgreSQL 18 table.
@@ -71,6 +71,10 @@ public final class OtpDao {
             // If rowsAffected is 0, the database rejected 
             // the save operation because of the timing constraint.
             if (rowsAffected == 0) {
+                // @todo fix this pattern 
+                // when we throw IllegalArgument up the stack, the Transaction 
+                // handler will catch it in the final exception block and report 
+                // it as Database CRASH!!!  
                 throw new IllegalArgumentException(SysErrorCode.TOO_MANY_REQUESTS.token());
             }
 
@@ -127,7 +131,7 @@ public final class OtpDao {
             ps.setString(1, e164Phone);
             ps.executeUpdate();
         }
-        
+
     }
 
 }
