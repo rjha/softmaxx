@@ -79,3 +79,31 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 
 
 
+
+
+-- 
+-- xapi_worker user 
+-- 
+
+CREATE USER xapi_worker WITH PASSWORD 'uranium#moon#beam';
+GRANT CONNECT ON DATABASE xapi_db TO xapi_worker;
+
+
+-- @imp 
+-- switch to your database as postgres (admin) user 
+-- 
+\c xapi_db
+
+
+GRANT USAGE ON SCHEMA public TO xapi_worker;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO xapi_worker;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO xapi_worker;
+ALTER DEFAULT PRIVILEGES FOR ROLE xapi_user IN SCHEMA public GRANT SELECT ON TABLES TO xapi_worker;
+
+GRANT USAGE ON SCHEMA pgque TO xapi_worker;
+GRANT pgque_reader TO xapi_worker;
+
+
+
+
+
