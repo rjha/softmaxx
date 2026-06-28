@@ -1,102 +1,171 @@
+import os
 import time
 import json
 import logging
+import signal
 from pgque import connect, Message
+from config import AppConfig, DatabaseType, get_database_config, get_logger_config
 
+# Establish structural module-scoped logger hierarchy
+logger = logging.getLogger("xapi.main." + __name__)
 
-# Configuration
-DSN = "postgresql://xxxx_user:xxxx_password@localhost:5432/xapi_db"
+# Global operational state indicator for clean system shutdown orchestration
+_keep_running = True
+
+# Static Operational Constraints
 QUEUE_NAME = "xapi_tube"
-CONSUMER_NAME = "xapi_tube_worker"
+CONSUMER_NAME = "xapi_tube_worker01"
 BATCH_SIZE = 100
 POLL_INTERVAL_SECONDS = 1.0
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def process_event(msg: Message):
+def _handle_termination_signals(signum, frame) -> None:
+    """Intercepts system lifecycle signals to trigger an orderly loop cutoff."""
+    global _keep_running
+    logger.warning("System termination signal {0} intercepted. Completing active batch...".format(signum))
+    _keep_running = False
+
+
+def _safe_rollback(client) -> None:
     """
-    Your custom business logic for processing Java producer events.
-    Modify this function based on the event structure sent by Java.
+    Safely triggers a database transaction rollback.
+    Checks that the connection object is valid and swallows any secondary 
+    exceptions that occur during the rollback process to prevent loop crashes.
     """
-    logging.info(f"Processing event ID: {msg.msg_id} | Type: {msg.type}")
+    if client and getattr(client, 'conn', None):
+        try:
+            logger.warning("Attempting database transaction rollback...")
+            client.conn.rollback()
+            logger.info("Database transaction rolled back successfully.")
+        except Exception as rollback_err:
+            logger.error("Secondary error encountered during connection rollback: {0}".format(rollback_err))
+
+
+def init_worker() -> str:
+    """
+    Phase 1: Bootstraps configuration, sets up logging, registers termination 
+    signals, and validates the PostgreSQL prerequisite by subscribing the worker.
     
-    # Payload is typically parsed or can be treated as a dict/string depending on Java serializer
+    Any connection or subscription failure here propagates upward as a hard exception,
+    causing the script to fail-fast.
+    
+    Returns: The validated DSN connection string.
+    """
+    global _keep_running
+    
+    # 1. Fire structural fail-fast configuration parser
+    AppConfig.load()
+    
+    # 2. Extract logger properties and build global logging channels
+    log_config = get_logger_config()
+    AppConfig.init_logging(log_file=log_config.log_file, log_level=log_config.log_level)
+    
+    logger.info("Configuration parameters and logging engines successfully instantiated.")
+
+    # 3. Bind OS termination interrupts for clean systemd lifecycle control
+    signal.signal(signal.SIGTERM, _handle_termination_signals)
+    signal.signal(signal.SIGINT, _handle_termination_signals)
+
+    # 4. Resolve the targeted active runtime environment config block
+    env_mode = os.environ.get("XAPI_ENV_MODE", "DEV").upper()
+    db_type = DatabaseType.PRODUCTION if env_mode == "PRODUCTION" else DatabaseType.DEV
+    db_config = get_database_config(db_type)
+    
+    # 5. Build positional format connection credentials
+    dsn = "postgresql://{0}:{1}@{2}:{3}/{4}".format(
+        db_config.db_user,
+        db_config.db_password,
+        db_config.db_host,
+        db_config.db_port,
+        db_config.db_name
+    )
+    
+    logger.info("Validating database prerequisite and subscribing worker to queue...")
+    
+    # 6. Execute modern subscribe hook. Failures here crash the worker immediately.
+    # with connect(dsn) as client:
+    #    with client.conn.cursor() as cur:
+    #        cur.execute("SELECT pgque.subscribe(%s, %s)", (QUEUE_NAME, CONSUMER_NAME))
+    #    client.conn.commit()
+    #    logger.info("Worker subscription confirmed with PgQue schema.")
+    #        
+    return dsn
+
+
+def execute_business_logic(msg: Message) -> None:
+    """
+    Phase 3: Deep isolated single-message business parsing.
+    Encapsulates your event routing, payload decoding, and transformation logic.
+    """
+    logger.info("Processing event ID: {0} | Type: {1}".format(msg.msg_id, msg.type))
     payload = msg.payload
-    print(payload)
+    logger.info("Payload contents for message {0}: {1}".format(msg.msg_id, payload))
 
-    if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except json.JSONDecodeError:
-            pass
-            
-    # Example processing logic
-    # print(f"Payload Data: {payload}")
 
-def run_consumer():
-    logging.info(f"Starting consumer '{CONSUMER_NAME}' on queue '{QUEUE_NAME}'...")
+def run_consumer(dsn: str) -> None:
+    """
+    Phase 2: Persistent operational queue polling loop.
+    Fetches snapshot batches from PgQue, coordinates transactions, and handles error thresholds.
+    """
+    global _keep_running
+    logger.info("Starting consumer worker polling sequence loop...")
     
-    # Establish a connection context with PgQue
-    with connect(DSN) as client:
-        
-        # Explicitly register the consumer if it hasn't been done via SQL yet
-        # PgQue allows safe, idempotent registration.
-        try:
-            with client.conn.cursor() as cur:
-                cur.execute("SELECT pgque.register_consumer(%s, %s)", (QUEUE_NAME, CONSUMER_NAME))
-            client.conn.commit()
-        except Exception as e:
-            client.conn.rollback() # Consumer might already be registered
-            
-        # Main worker poll loop
-        while True:
+    # Instantiate persistent execution connection context
+    with connect(dsn) as client:
+        while _keep_running:
             try:
-                # 1. Fetch a snapshot batch of events
+                # A. Fetch message batch snapshot from the queue
                 messages = client.receive(QUEUE_NAME, CONSUMER_NAME, BATCH_SIZE)
                 
                 if not messages:
-                    # No new events available; sleep to respect the pg_cron tick window (~100ms-1s)
                     time.sleep(POLL_INTERVAL_SECONDS)
                     continue
                 
-                logging.info(f"Received batch of {len(messages)} messages.")
+                logger.info("Received batch containing {0} event rows.".format(len(messages)))
                 batch_id = messages[0].batch_id
                 batch_failed = False
                 
-                # 2. Iterate and process messages sequentially or in parallel
+                # B. Iterate and delegate each individual message down to the business logic handler
                 for msg in messages:
                     try:
-                        process_event(msg)
+                        execute_business_logic(msg)
                     except Exception as exc:
-                        logging.error(f"Error processing message {msg.msg_id}: {exc}")
+                        logger.error("Processing exception hit on event {0}: {1}".format(msg.msg_id, exc))
                         batch_failed = True
-                        break # Break batch loop to trigger negative acknowledgement
+                        break  # Halt the batch iteration instantly to guarantee rollback isolation
                 
-                # 3. Finalize the snapshot batch boundary
+                # C. Finalize transaction boundaries depending on execution success indicators
                 if batch_failed:
-                    # Rejects the batch, returning it to retry queue with an explicit 30s backoff delay
-                    logging.warning(f"Nacking batch {batch_id} due to processing failure.")
+                    logger.warning("Nacking batch {0}. Triggering 30s retry window.".format(batch_id))
                     client.nack(batch_id, retry_delay=30)
                 else:
-                    # Success: Advances the consumer's log cursor past this batch
-                    logging.info(f"Acking batch {batch_id} successfully.")
+                    logger.info("Acking batch {0} successfully.".format(batch_id))
                     client.ack(batch_id)
                 
-                # Commit the ack/nack transaction to Postgres
+                # Atomic commit command sequence
                 client.conn.commit()
                 
-            except KeyboardInterrupt:
-                logging.info("Shutting down consumer gracefully...")
-                break
             except Exception as loop_err:
-                logging.error(f"Unexpected loop tracking error: {loop_err}")
-                # Ensure we don't leave dangling uncommitted transactions
-                try:
-                    client.conn.rollback()
-                except Exception:
-                    pass
-                time.sleep(5) # Cooldown on database connection drops or network glitches
+                logger.error("Unexpected loop error boundary hit: {0}".format(loop_err))
+                _safe_rollback(client)
+                time.sleep(5)  # Backoff delay step to protect resources on cluster connection anomalies
+
+
+def main() -> None:
+    """
+    Application Root Entrypoint.
+    Orchestrates the logical chronological transition between startup and service execution.
+    """
+    # Step 1: Initialise variables and establish baseline connection parameters.
+    # Any exception here bubbles up naturally, crashing the application fast.
+    dsn = init_worker()
+    
+    # Step 2: Handoff connection context parameters directly to the consumer engine loop
+    run_consumer(dsn)
+        
+    logger.info("Process execution cleanly terminated. Worker shutdown sequence completed successfully.")
+
 
 if __name__ == "__main__":
-    run_consumer()
-
+    main()
+ 
