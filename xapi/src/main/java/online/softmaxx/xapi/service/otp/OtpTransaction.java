@@ -26,20 +26,13 @@ public class OtpTransaction {
         Objects.requireNonNull(phoneRecord, "PhoneRecord cannot be null");
         Objects.requireNonNull(otpType, "OtpType cannot be null");
         Connection conn = null;
-            
-        final String payload = "code: " + token + ",phone:" + phoneRecord.e164Phone();
         
-
         try {
 
             conn = DatabaseManager.getConnection();
             conn.setAutoCommit(false);
             OtpDao.saveOtpToken(conn, phoneRecord, token, otpType);
             conn.commit();
-            
-            // send to kafka topic
-            KafkaPublisher.send("xapi_tube", phoneRecord.e164Phone(), payload);
-
 
         } catch (final SQLException e) {
             DatabaseManager.rollback(conn);

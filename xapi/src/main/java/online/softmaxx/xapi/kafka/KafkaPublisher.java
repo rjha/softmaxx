@@ -8,13 +8,15 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 
+import online.softmaxx.xapi.util.LogTracker;
+
 
 public final class KafkaPublisher {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaPublisher.class.getName());
-    
-   
     private static final Provider PROVIDER = new Provider();
+    private static final LogTracker LOG_TRACKER = new LogTracker(LOGGER);
+
 
     private KafkaPublisher() {
         throw new UnsupportedOperationException("KafkaPublisher class cannot be instantiated");
@@ -23,16 +25,22 @@ public final class KafkaPublisher {
     public static void send(final String topic, final String key, final String value) {
 
         final ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
-            
-        // Accesses the producer instance safely via the lazy initialization provider
+        
+        // Let Kafka's internal background thread handle the async delivery 
+        // and catch the error right where it happens
         PROVIDER.instance().send(record, (metadata, exception) -> {
-            if (exception != null) {
-                LOGGER.log(System.Logger.Level.ERROR, "Async delivery failure to topic: " + topic, exception);
+            if (exception == null) {
+                // send() is success
+                LOG_TRACKER.reset();
+                // @todo change to DEBUG 
+                LOGGER.log(System.Logger.Level.INFO, 
+                    "Message saved to topic={0} partition={1} offset={2}",
+                    metadata.topic(), 
+                    metadata.partition(), 
+                    metadata.offset());
+                
             } else {
-                // @todo - do we need to wrap such case in LogUtil.debug() kind of call? 
-                // it can send debug based on a system flag
-                LOGGER.log(System.Logger.Level.DEBUG, "Message saved to topic={0} partition={1} offset={2}",
-                        metadata.topic(), metadata.partition(), metadata.offset());
+                LOG_TRACKER.error( "Async delivery failure to topic: " + topic, exception);
             }
         });
     }

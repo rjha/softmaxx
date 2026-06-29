@@ -11,6 +11,7 @@ import jakarta.ws.rs.ext.Provider;
 import jakarta.ws.rs.core.HttpHeaders;
 import online.softmaxx.xapi.bundle.*;
 import online.softmaxx.xapi.db.DuplicateKeyException;
+import online.softmaxx.xapi.kafka.KafkaException;
 
 
 @Provider
@@ -21,7 +22,8 @@ public final class XapiExceptionMapper implements ExceptionMapper<Exception> {
     // Exception => http status code mapping 
     private static final Map<Class<? extends Exception>, Response.Status> EXCEPTION_STATUS_MAP = Map.of(
         IllegalArgumentException.class, Response.Status.BAD_REQUEST,
-        DuplicateKeyException.class, Response.Status.CONFLICT
+        DuplicateKeyException.class, Response.Status.CONFLICT,
+        KafkaException.class, Response.Status.BAD_GATEWAY
     );
 
     @Context

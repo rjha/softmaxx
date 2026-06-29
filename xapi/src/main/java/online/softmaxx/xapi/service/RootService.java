@@ -7,6 +7,7 @@ import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.Map;
 import online.softmaxx.xapi.dao.UserTransaction;
+import online.softmaxx.xapi.kafka.KafkaProxy;
 import online.softmaxx.xapi.service.model.PhoneRecord;
 import online.softmaxx.xapi.service.otp.*;
 
@@ -56,7 +57,9 @@ public class RootService {
             60);
             final String secureToken = OtpTokenFactory.generate(designatedType);
             OtpTransaction.saveOtpToken(phoneRecord, secureToken, designatedType);
-
+            KafkaProxy.sendOtpEvent(phoneRecord, secureToken, designatedType);
+            
+            
         } else {
             LOGGER.log(System.Logger.Level.INFO, "user is not registered...");
         }
