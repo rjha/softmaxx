@@ -9,12 +9,13 @@
 CREATE SCHEMA IF NOT EXISTS pgque;
 
 /* 
+INSTALL 
 -- clone the repo and run command 
-$PAGER=cat psql --no-psqlrc --single-transaction \
-   -d xapi_db \
-   --command="SET search_path TO pgque;" \
-   -f sql/pgque.sql
+$PAGER=cat psql --no-psqlrc --single-transaction -d xapi_db \ 
+    --command="SET search_path TO pgque;" -f sql/pgque.sql
 
+UNINSTALL 
+$psql --no-psqlrc --single-transaction -d xapi_db -f sql/pgque_uninstall.sql
 */
 
 -- after installation, we want to grant rights to our 
