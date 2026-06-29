@@ -237,15 +237,15 @@ def get_database_config(db_type: DatabaseType) -> DatabaseConfig:
 
 
 @lru_cache(maxsize=1)
-def get_logger_config() -> LoggerConfig:
+def get_logger_config(name: str) -> LoggerConfig:
     """
     Extracts logging config parameters from AppConfig and wraps them inside
     an immutable frozen LoggerConfig dataclass. Cached.
     """
     log_section = AppConfig.get("logging")
-    worker_log_config = log_section["xapi-worker"]
+    data = log_section[name]
     
     return LoggerConfig(
-        log_file=str(worker_log_config["log_file"]),
-        log_level=int(worker_log_config["log_level"])
+        log_file=str(data["log_file"]),
+        log_level=int(data["log_level"])
     )

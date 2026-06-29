@@ -1,6 +1,5 @@
 import os
 import time
-import json
 import logging
 import signal
 from pgque import connect, Message
@@ -57,7 +56,7 @@ def init_worker() -> str:
     AppConfig.load()
     
     # 2. Extract logger properties and build global logging channels
-    log_config = get_logger_config()
+    log_config = get_logger_config("pgque")
     AppConfig.init_logging(log_file=log_config.log_file, log_level=log_config.log_level)
     
     logger.info("Configuration parameters and logging engines successfully instantiated.")
