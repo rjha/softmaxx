@@ -9,9 +9,12 @@
         <version>4.4.1</version>
         <relativePath/>
     </parent>
+
     <groupId>online.softmaxx</groupId>
     <artifactId>xapi</artifactId>
     <version>1.0-SNAPSHOT</version>
+
+    
 
     <properties>
         <mainClass>online.softmaxx.xapi.Main</mainClass>
@@ -93,10 +96,39 @@
             <artifactId>helidon-microprofile-jwt-auth</artifactId>
         </dependency>
 
+        <!-- kafka -->
+        <dependency>
+            <groupId>io.helidon.messaging.kafka</groupId>
+            <artifactId>helidon-messaging-kafka</artifactId>
+            <!-- Version is managed by your helidon-bom / parent pom -->
+        </dependency>
+        
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>4.3.1</version>
+        </dependency>
+
+
     </dependencies>
 
     <build>
         <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>25</release>
+                    <compilerArgs>
+                        <!-- Force JVM compiler to resolve the automatic module string -->
+                        <arg>--add-modules</arg>
+                        <arg>kafka.clients</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -140,4 +172,81 @@
 
         </plugins>
     </build>
+
+    <profiles>
+        <!-- 1. Default Profile: Builds your Helidon 4 API (Active by default) -->
+        <profile>
+            <id>xapi-api</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <!-- Keeps Helidon building its standard framework application layout -->
+                <packaging.type>jar</packaging.type> 
+            </properties>
+        </profile>
+
+        <!-- 2. Worker Profile: Builds your separate, standalone Tube Worker JAR -->
+        <profile>
+            <id>worker</id>
+            <properties>
+                <packaging.type>jar</packaging.type>
+            </properties>
+            <build>
+                <finalName>xapi-tube-worker</finalName>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <version>3.6.2</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>shade</goal>
+                                </goals>
+                                <configuration>
+                                    <shadedArtifactAttached>false</shadedArtifactAttached>
+                                    <createDependencyReducedPom>false</createDependencyReducedPom>
+                                    
+                                    <!-- CRITICAL EXCLUSION: Evict the entire Helidon ecosystem from the worker artifact -->
+                                    <artifactSet>
+                                        <excludes>
+                                            <exclude>io.helidon.*:*</exclude>
+                                            <exclude>jakarta.*:*</exclude>
+                                            <exclude>org.glassfish.*:*</exclude>
+                                        </excludes>
+                                    </artifactSet>
+
+                                    <transformers>
+                                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                            <mainClass>online.softmaxx.xapi.kafka.WorkerRunner</mainClass>
+                                        </transformer>
+                                    </transformers>
+                                    <filters>
+                                        <filter>
+                                            <artifact>*:*</artifact>
+                                            <excludes>
+                                                <exclude>META-INF/*.SF</exclude>
+                                                <exclude>META-INF/*.DSA</exclude>
+                                                <exclude>META-INF/*.RSA</exclude>
+
+                                                <!-- Suppress common metadata file warnings -->
+                                                <exclude>META-INF/LICENSE*</exclude>
+                                                <exclude>META-INF/NOTICE*</exclude>
+                                                <exclude>META-INF/DEPENDENCIES*</exclude>
+
+                                            </excludes>
+                                        </filter>
+                                    </filters>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+    
 </project>

@@ -24,6 +24,8 @@ module online.softmaxx.xapi {
     // Mandatory access requirement for
     //  MicroProfile JWT generation tooling
     requires io.helidon.microprofile.jwt.auth;
+    requires io.helidon.messaging.connectors.kafka;
+    requires kafka.clients;
 
     exports online.softmaxx.xapi;
     opens online.softmaxx.xapi;

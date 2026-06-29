@@ -1,11 +1,11 @@
 package online.softmaxx.xapi.service.otp;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import online.softmaxx.xapi.bundle.SysErrorCode;
 import online.softmaxx.xapi.db.DataAccessException;
 import online.softmaxx.xapi.db.DatabaseManager;
+import online.softmaxx.xapi.kafka.KafkaPublisher;
 import online.softmaxx.xapi.service.model.PhoneRecord;
 import java.util.Objects;
 
@@ -28,21 +28,18 @@ public class OtpTransaction {
         Connection conn = null;
             
         final String payload = "code: " + token + ",phone:" + phoneRecord.e164Phone();
-        final String workerQueueSql  = "SELECT pgque.send(?, ?);";
+        
 
         try {
 
             conn = DatabaseManager.getConnection();
             conn.setAutoCommit(false);
             OtpDao.saveOtpToken(conn, phoneRecord, token, otpType);
-
-            try (PreparedStatement psQue = conn.prepareStatement(workerQueueSql)) {
-                psQue.setString(1, "xapi_tube");      
-                psQue.setString(2, payload);
-                psQue.executeQuery(); 
-            }
-
             conn.commit();
+            
+            // send to kafka topic
+            KafkaPublisher.send("xapi_tube", phoneRecord.e164Phone(), payload);
+
 
         } catch (final SQLException e) {
             DatabaseManager.rollback(conn);
