@@ -66,7 +66,8 @@ public class RootService {
 
         return Response.status(Response.Status.ACCEPTED)
                 .entity(Map.of(
-                        "status", "success",
+                        "code", Response.Status.ACCEPTED.getStatusCode(),
+                        "status", "accepted",
                         "message", "Please check your registered phone number for OTP"))
                 .build();
 
