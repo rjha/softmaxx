@@ -40,7 +40,7 @@ public final class KafkaPublisher {
                     metadata.offset());
                 
             } else {
-                LOG_TRACKER.error( "Async delivery failure to topic: " + topic, exception);
+                LOG_TRACKER.error( "kafka delivery failed for topic: " + topic, exception);
             }
         });
     }
