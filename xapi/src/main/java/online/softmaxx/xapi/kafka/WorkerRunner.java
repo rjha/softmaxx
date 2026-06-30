@@ -21,7 +21,7 @@ public final class WorkerRunner {
         final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
         // 1. Initialize the worker (All setup logic fires inside this constructor)
-        final TubeWorker testingWorker = new TubeWorker(
+        final TubeWorker tubeWorker = new TubeWorker(
             workerId, 
             targetTopic, 
             consumerGroupId, 
@@ -30,12 +30,12 @@ public final class WorkerRunner {
 
         // 2. Spawn exactly one isolated testing instance on a Virtual Thread
         LOGGER.log(System.Logger.Level.INFO, "Spawning worker [{0}] on JDK Virtual Thread...", workerId);
-        Thread.startVirtualThread(testingWorker);
+        Thread.startVirtualThread(tubeWorker);
 
         // 3. Register a clean OS shutdown interceptor hook (SIGINT/SIGTERM)
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             LOGGER.log(System.Logger.Level.INFO, "Shutdown event captured. Tearing down worker safely...");
-            testingWorker.stop(); // Safe, warning-free CloseOptions teardown
+            tubeWorker.shutdown(); // Safe, warning-free CloseOptions teardown
             shutdownLatch.countDown();
         }));
 
