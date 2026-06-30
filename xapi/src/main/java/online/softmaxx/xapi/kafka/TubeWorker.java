@@ -81,7 +81,7 @@ public final class TubeWorker implements Runnable {
 
         } catch (final WakeupException e) {
             // ignore - we are closing 
-            LOGGER.log(System.Logger.Level.DEBUG, "[{0}]kafka consumer wakeup ignored...", workerId);
+            LOGGER.log(System.Logger.Level.ERROR, "[{0}]kafka consumer wakeup ignored...", workerId);
         } catch (final Exception ex) {
             LOGGER.log(System.Logger.Level.ERROR, "[" + workerId + "] processing thread error", ex);
 
