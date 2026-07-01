@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.kafka.clients.consumer.CloseOptions;
+import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -22,10 +23,6 @@ public final class TubeWorker implements Runnable {
     private final String topic;
     private final KafkaConsumer<String, String> consumer;
     private final AtomicBoolean shutdown;
-    private final KafkaState KAFKA_STATE = new KafkaState();
-   
-    private static final long MIN_BACKOFF_MS = 2000L;   
-    private static final long MAX_BACKOFF_MS = 60000L;  
     private static final String RECONNECT_BACKOFF_MS = "5000";
     private static final String RECONNECT_BACKOFF_MAX_MS = "30000";
 
@@ -42,7 +39,7 @@ public final class TubeWorker implements Runnable {
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
 
         // Next-gen KIP-848 protocol optimization
         props.put("group.protocol", "consumer"); 
@@ -66,22 +63,22 @@ public final class TubeWorker implements Runnable {
 
                     // poll the broker for new records 
                     final ConsumerRecords<String, String> records = this.consumer.poll(Duration.ofSeconds(1));
-                    // should we continue processing or do a wait + poll()? 
-                    if(KAFKA_STATE.pollError(records.isEmpty(), this.consumer.assignment().isEmpty(), this)) {
-                        continue; 
-                    }
-                    
                     processRecords(records);
+                    doCommitSync();
 
+                } catch (final WakeupException e) {
+                    // 3. Captures wakeups from BOTH poll() and the rethrow from doCommitSync()
+                    if (shutdown.get()) {
+                        LOGGER.log(System.Logger.Level.INFO, "[{0}] Shutting down loop via wakeup.", workerId);
+                        break;
+                    }
+                    LOGGER.log(System.Logger.Level.WARNING, "[{0}] Spurious wakeup detected, resuming poll...", workerId);
                 } catch (final RetriableException networkEx) {
-                    // retriable-error, wait and try again
-                    KAFKA_STATE.networkError(this);
+                    LOGGER.log(System.Logger.Level.WARNING, "[{0}] Retriable network error, retrying poll...", workerId, networkEx);
+                    
                 }
             }
 
-        } catch (final WakeupException e) {
-            // ignore - we are closing 
-            LOGGER.log(System.Logger.Level.ERROR, "[{0}]kafka consumer wakeup ignored...", workerId);
         } catch (final Exception ex) {
             LOGGER.log(System.Logger.Level.ERROR, "[" + workerId + "] processing thread error", ex);
 
@@ -103,7 +100,6 @@ public final class TubeWorker implements Runnable {
         this.consumer.wakeup(); 
     }
 
-
     private void processRecords( final ConsumerRecords<String, String> records) {
 
         for (final ConsumerRecord<String, String> record : records) {
@@ -115,94 +111,32 @@ public final class TubeWorker implements Runnable {
                 //  do something with the payload
 
             } catch (final Exception ex) {
-                // CRITICAL BOUNDARY: A data payload or DB error must NEVER crash your network state machine loop.
-                LOGGER.log(System.Logger.Level.ERROR,  "[" + workerId + "] fatal error in record processing", ex);
+                LOGGER.log(System.Logger.Level.ERROR,  "[{0}] fatal: handler failed for record at offset: {1}", workerId, record.offset(),  ex);
             }
         }
     }
 
-    private void executeBackoffSleep() {
-
-       try {
-            // virtual thread sleep 
-            Thread.sleep(KAFKA_STATE.currentBackoffMs);
-        } catch (final InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            this.shutdown.set(true);
-        } finally {
-            KAFKA_STATE.incrementBackoff();
+    private void doCommitSync() {
+        try {
+            // Perform the standard blocking commit
+            this.consumer.commitSync();
+        } catch (final WakeupException e) {
+            // We were woken up during the commit. 
+            // We will try one final time with a strict timeout to avoid blocking indefinitely,
+            // then rethrow the exception so the main loop knows a shutdown/wakeup was requested.
+            try {
+                LOGGER.log(System.Logger.Level.INFO, "Commit interrupted by wakeup. Retrying final commit...");
+                this.consumer.commitSync(Duration.ofSeconds(2));
+            } catch (Exception finalEx) {
+                LOGGER.log(System.Logger.Level.ERROR, "Final fallback commit failed", finalEx);
+            }
+            throw e; 
+        } catch (final CommitFailedException e) {
+            // The commit failed unrecoverably (e.g., rebalance occurred).
+            // Safe to log and move on since another worker now owns these partitions.
+            LOGGER.log(System.Logger.Level.ERROR, "Commit failed unrecoverably", e);
         }
-
     }
 
-    private static final class KafkaState {
-
-        private final int OK_STATE = 1;
-        private final int ERROR_STATE = 2;
-        private final int EMPTY_STATE = 3;
-
-        private volatile int currentState;
-        private volatile long currentBackoffMs;
-
-        private KafkaState() {
-            this.currentState = OK_STATE;
-            this.currentBackoffMs = MIN_BACKOFF_MS;
-        }
-
-        private boolean pollError(boolean isRecordEmpty, boolean isAssignmentEmpty, TubeWorker worker) {
-            
-            this.emptyRecords(isRecordEmpty);
-            this.consumerAssignment(isAssignmentEmpty);
-
-            if (this.currentState == ERROR_STATE) {
-                // indicates bad poll() result
-                // skip further processing 
-                worker.executeBackoffSleep();
-                return true; 
-            }
-
-            return false;
-
-        }
-
-        private void networkError(TubeWorker worker) {
-            this.currentState = ERROR_STATE;
-            // worker.executeBackoffSleep();
-        }
-
-        // events 
-        private void emptyRecords(boolean emptyFlag) {
-
-            if(emptyFlag) {
-                // No records. 
-                // No change in EMPTY or ERROR state
-                if (this.currentState == OK_STATE) {
-                    this.currentState = EMPTY_STATE;
-                }
-                
-            } else {
-                // we found records. 
-                this.currentState = OK_STATE;
-                this.currentBackoffMs = MIN_BACKOFF_MS; 
-            }
-
-        }
-
-        private void consumerAssignment(boolean errorFlag) {
-
-            if(!errorFlag) {
-                this.currentState = OK_STATE;
-                this.currentBackoffMs = MIN_BACKOFF_MS;
-            } else {
-                // partition assigment error
-                this.currentState = ERROR_STATE;
-            }
-
-        }
-
-        private void incrementBackoff() {
-            currentBackoffMs = Math.min(currentBackoffMs * 2, MAX_BACKOFF_MS);
-        }
-        
-    }
+   
 }
