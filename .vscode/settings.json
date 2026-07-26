@@ -1,0 +1,13 @@
+{
+    "python-envs.pythonProjects": [
+        {
+            "path": ".",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ],
+    "python.defaultInterpreterPath": "/Users/rjha/sw/pyvm/scanpy/bin/python3",
+    "python.analysis.extraPaths": [
+        "/Users/rjha/sw/pyvm/scanpy/lib/python3.13/site-packages"
+    ]
+}
