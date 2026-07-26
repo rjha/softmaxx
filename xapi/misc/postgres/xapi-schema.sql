@@ -85,29 +85,30 @@ CREATE INDEX idx_polygon_master_geometry ON polygon_master USING GIN (raw_geomet
 -- polygon_tile_mapper and computation_tile_mapper 
 -- 
 
-CREATE TABLE polygon_subscription (
-    subscription_id BIGSERIAL PRIMARY KEY,
+CREATE TABLE polygon_computation (
+    polygon_comp_id BIGSERIAL PRIMARY KEY,
     polygon_id BIGINT NOT NULL REFERENCES polygon_master(polygon_id) ON DELETE CASCADE,
     computation_id BIGINT NOT NULL REFERENCES computation_master(computation_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_polygon_subscription UNIQUE (polygon_id, computation_id)
+    CONSTRAINT unique_polygon_comp UNIQUE (polygon_id, computation_id)
 );
 
 
--- 4. Unique computation tile for a zoom level 
--- multiple computations will link to this table 
--- @todo index 
+-- 
+-- 4. master list of geo tiles that we need to track 
+-- across polygons and computations.  
+--  
 
-CREATE TABLE computation_tile (
+CREATE TABLE geo_tiles (
     tile_id BIGSERIAL PRIMARY KEY,
-    zoom_level INTEGER NOT NULL CHECK (zoom_level BETWEEN 0 AND 30),
+    tile_z INTEGER NOT NULL CHECK (tile_z BETWEEN 0 AND 30),
     tile_x INTEGER NOT NULL,
     tile_y INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_compuation_tile UNIQUE (zoom_level, tile_x, tile_y)
+    CONSTRAINT unique_geo_tile UNIQUE (tile_z, tile_x, tile_y)
 );
 
-CREATE INDEX idx_comp_tile_xyz ON computation_tile(zoom_level, tile_x, tile_y);
+CREATE INDEX idx_geo_tile_xyz ON geo_tiles(tile_z, tile_x, tile_y);
 
 -- 5. resolve a polygon into tiles at a zoom level 
 -- area_fraction is a measure of tile area enclosed by polygon 
@@ -115,28 +116,28 @@ CREATE INDEX idx_comp_tile_xyz ON computation_tile(zoom_level, tile_x, tile_y);
 -- every computation_tile  
 -- 
 
-CREATE TABLE polygon_tile_mapper (
-    mapper_id BIGSERIAL PRIMARY KEY,
+CREATE TABLE polygon_tiles (
+    polygon_tile_id BIGSERIAL PRIMARY KEY,
     polygon_id BIGINT NOT NULL REFERENCES polygon_master(polygon_id) ON DELETE CASCADE,
-    tile_id BIGINT NOT NULL REFERENCES computation_tile(tile_id) ON DELETE RESTRICT,
+    tile_id BIGINT NOT NULL REFERENCES geo_tiles(tile_id) ON DELETE RESTRICT,
     area_fraction NUMERIC(5, 4) NOT NULL CHECK (area_fraction > 0 AND area_fraction <= 1),
-    CONSTRAINT unique_polygon_tile_mapper UNIQUE (polygon_id, tile_id)
+    CONSTRAINT unique_polygon_tile UNIQUE (polygon_id, tile_id)
 );
 
-CREATE INDEX idx_polygon_comp_tile ON polygon_tile_mapper(tile_id);
+CREATE INDEX idx_polygon_tile ON polygon_tiles(tile_id);
 
 --
 -- 6. what tiles a computation is supposed to run on 
 -- 
 -- 
-CREATE TABLE computation_tile_mapper (
-    mapper_id BIGSERIAL PRIMARY KEY,
+CREATE TABLE computation_tiles (
+    computation_tile_id BIGSERIAL PRIMARY KEY,
     computation_id BIGINT REFERENCES computation_master(computation_id) ON DELETE CASCADE,
-    tile_id BIGINT REFERENCES computation_tile(tile_id) ON DELETE CASCADE,
-    CONSTRAINT unique_computation_tile_mapper UNIQUE (computation_id, tile_id)
+    tile_id BIGINT REFERENCES geo_tiles(tile_id) ON DELETE CASCADE,
+    CONSTRAINT unique_computation_tile UNIQUE (computation_id, tile_id)
 );
 
-CREATE INDEX idx_comp_comp_tile ON computation_tile_mapper(computation_id);
+CREATE INDEX idx_comp_tile ON computation_tiles(computation_id);
 
 
 ---

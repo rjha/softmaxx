@@ -196,7 +196,7 @@ class AppConfig:
             raise RuntimeError("fatal: log_file path parameter missing for init_logging()")
 
         log_format = logging.Formatter(
-            fmt="%(asctime)s [%(levelname)s] %(name)s:(%(lineno)d) - %(message)s",
+            fmt="%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:(%(lineno)d) - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S"
         )
         
