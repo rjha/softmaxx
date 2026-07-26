@@ -1,0 +1,41 @@
+
+
+$clone git repo 
+
+# run the command as psql user 
+# To uninstall 
+psql "postgresql://postgres@localhost:5432/postgres" -c "DROP SCHEMA IF EXISTS pgmq CASCADE;"
+
+# Install in xapi_db 
+psql -d xapi_db -f pgmq-extension/sql/pgmq.sql
+
+# Grant permissions to xapi_user if he is __not owner__ of xapi_db 
+# if xapi_user is owner of xapi_db then below steps are not needed
+# change database as psql user
+
+$psql -d xapi_db
+xapi_db=#
+
+
+-- 1. Allow xapi_user to see and access the pgmq namespace
+GRANT USAGE ON SCHEMA pgmq TO xapi_user;
+-- 2. Allow xapi_user to read/write the master tracking tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pgmq TO xapi_user;
+-- 3. Allow xapi_user to execute ALL PGMQ functions (read, send, pop, etc.)
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pgmq TO xapi_user;
+-- 4. sequences 
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA pgmq TO xapi_user;
+
+-- Automatically give xapi_user full access to 
+-- any new queue tables created in the future
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA pgmq 
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO xapi_user;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA pgmq 
+GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO xapi_user;
+
+# create a PGMQ queue 
+$psql -U xapi_user -d xapi_db
+
+
