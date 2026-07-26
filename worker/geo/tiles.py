@@ -34,6 +34,44 @@ class PolygonDetail:
     geometry: str
 
 
+# Constants for Web Mercator (EPSG:3857) projection math
+EARTH_RADIUS = 6378137.0
+ORIGIN_SHIFT = math.pi * EARTH_RADIUS  # ~20037508.34 meters
+
+
+def latlon_to_meters(lon: float, lat: float) -> tuple:
+    """Converts WGS84 Longitude/Latitude to Web Mercator meters (EPSG:3857)
+
+    using pure mathematical equations.
+    """
+    # Convert longitude to meters
+    mx = lon * ORIGIN_SHIFT / 180.0
+
+    # Convert latitude to meters (handle poles safeguard)
+    if lat > 85.05112878:
+        lat = 85.05112878
+    elif lat < -85.05112878:
+        lat = -85.05112878
+
+    my = (
+        math.log(math.tan((90.0 + lat) * math.pi / 360.0))
+        / (math.pi / 180.0)
+    )
+    my = my * ORIGIN_SHIFT / 180.0
+
+    return mx, my
+
+
+def project_polygon_to_meters(coords_list: list) -> Polygon:
+    """Projects a list of [[lon, lat], ...] coordinates into a Shapely Polygon
+
+    expressed in Web Mercator meters.
+    """
+    meter_coords = [latlon_to_meters(lon, lat) for lon, lat in coords_list]
+    return Polygon(meter_coords)
+
+
+
 def _get_intersecting_tiles(polygon_coords, zoom):
     """
     Finds and prints all XYZ tiles that truly intersect a given polygon,
@@ -42,12 +80,12 @@ def _get_intersecting_tiles(polygon_coords, zoom):
     :param polygon_coords: List of [longitude, latitude] coordinates (closed ring)
     :param zoom: Target tile zoom level (integer)
     """
-    # 1. Instantiate the spatial polygon object
-    poly_geom = Polygon(polygon_coords)
-    
-    # 2. Extract bounding box extremes to locate calculation limits
-    min_lng, min_lat, max_lng, max_lat = poly_geom.bounds
-    
+
+    poly_geom_3857 = project_polygon_to_meters(polygon_coords)
+    # Keep your original WGS84 polygon for fast .intersects() bounding checks
+    poly_geom_wgs84 = Polygon(polygon_coords)
+    min_lng, min_lat, max_lng, max_lat = poly_geom_wgs84.bounds
+
     # Helper math equations to convert coordinates back and forth
     def lon2tile(lon, z):
         return math.floor((lon + 180) / 360 * (2 ** z))
@@ -77,32 +115,47 @@ def _get_intersecting_tiles(polygon_coords, zoom):
     intersect_count = 0
     tiles = []
 
-    # 3. Intersect loop iteration sweep
     for x in range(x_min, x_max + 1):
         for y in range(y_min, y_max + 1):
-            # Reverse-engineer bounding coordinate edges for this specific tile cell
             w = tile2lon(x, zoom)
             e = tile2lon(x + 1, zoom)
             n = tile2lat(y, zoom)
             s = tile2lat(y + 1, zoom)
-            
-            # Form a Shapely bounding geometry box for evaluation
-            tile_box = box(w, s, e, n)
-            
-            # 4. Filter true spatial geometry intersections
-            if poly_geom.intersects(tile_box):
-                intersect_count += 1
-                # --- Bit-Packing Formula ---
-                # Z: bits 0-5 (mask with 63)
-                # X: bits 6-34 (shifted left by 6)
-                # Y: bits 35-63 (shifted left by 35)
-                packed_id = (int(y) << 35) | (int(x) << 6) | int(zoom)
-                print(f"{zoom:<4} | {x:<9} | {y:<9} | {packed_id:<20}")
-                tiles.append(GeoTile(x=int(x), y=int(y), z=int(zoom), area_fraction=0.01))
-                
+
+            tile_box_wgs84 = box(w, s, e, n)
+
+            # Fast bounding check first
+            if poly_geom_wgs84.intersects(tile_box_wgs84):
+
+                # 2. Project the 4 corners of the tile box 
+                # into meters using your math function
+                tile_box_3857 = box(
+                    *latlon_to_meters(w, s), *latlon_to_meters(e, n)
+                )
+
+                # 3. Calculate intersection area fraction in meters
+                intersection_geom = poly_geom_3857.intersection(tile_box_3857)
+                area_fraction = intersection_geom.area / tile_box_3857.area
+                area_fraction = round(area_fraction, 4)
+
+                # Skip zero-sliver tiles to avoid database CheckViolations
+                if area_fraction > 0:
+                    intersect_count += 1
+                    packed_id = (int(y) << 35) | (int(x) << 6) | int(zoom)
+                    print(f"{zoom:<4} | {x:<9} | {y:<9} | {packed_id:<20}")
+                    tiles.append(
+                        GeoTile(
+                            x=int(x),
+                            y=int(y),
+                            z=int(zoom),
+                            area_percentage=area_fraction,
+                        )
+                    )
+
     print("-" * 53)
     print(f"Calculation Complete. Found {intersect_count} true intersecting tiles.\n")
     return tiles
+
 
 def _store_polygon_in_database(db_conn_string, polygon_name, polygon_object):
   
@@ -346,7 +399,7 @@ def start_worker():
     logger.info(f"geo polygon log config loaded...")
     # add_geo_polygon("polygon.json", "patna_zoo")
     # add_computation("NDVI", 16)
-    link_polygon_to_computation("patna_zoo", "NDVI")
+    # link_polygon_to_computation("patna_zoo", "NDVI")
 
 if __name__ == "__main__":
     start_worker()
