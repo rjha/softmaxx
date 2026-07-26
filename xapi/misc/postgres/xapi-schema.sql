@@ -60,7 +60,8 @@ CREATE TABLE computation_master (
     computation_id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     zoom_level INTEGER NOT NULL CHECK (zoom_level BETWEEN 0 AND 30),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT comp_unique_name UNIQUE (name)
 );
 
 -- 
@@ -71,7 +72,8 @@ CREATE TABLE polygon_master (
     polygon_id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     raw_geometry JSONB NOT NULL, 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT polygon_unique_name UNIQUE (name)
 );
 
 
@@ -88,7 +90,7 @@ CREATE TABLE polygon_subscription (
     polygon_id BIGINT NOT NULL REFERENCES polygon_master(polygon_id) ON DELETE CASCADE,
     computation_id BIGINT NOT NULL REFERENCES computation_master(computation_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_polygon_zoom UNIQUE (polygon_id, computation_id)
+    CONSTRAINT unique_polygon_subscription UNIQUE (polygon_id, computation_id)
 );
 
 
