@@ -39,7 +39,7 @@ EARTH_RADIUS = 6378137.0
 ORIGIN_SHIFT = math.pi * EARTH_RADIUS  # ~20037508.34 meters
 
 
-def latlon_to_meters(lon: float, lat: float) -> tuple:
+def _latlon_to_meters(lon: float, lat: float) -> tuple:
     """Converts WGS84 Longitude/Latitude to Web Mercator meters (EPSG:3857)
 
     using pure mathematical equations.
@@ -62,12 +62,12 @@ def latlon_to_meters(lon: float, lat: float) -> tuple:
     return mx, my
 
 
-def project_polygon_to_meters(coords_list: list) -> Polygon:
+def _project_polygon_to_meters(coords_list: list) -> Polygon:
     """Projects a list of [[lon, lat], ...] coordinates into a Shapely Polygon
 
     expressed in Web Mercator meters.
     """
-    meter_coords = [latlon_to_meters(lon, lat) for lon, lat in coords_list]
+    meter_coords = [_latlon_to_meters(lon, lat) for lon, lat in coords_list]
     return Polygon(meter_coords)
 
 
@@ -81,7 +81,7 @@ def _get_intersecting_tiles(polygon_coords, zoom):
     :param zoom: Target tile zoom level (integer)
     """
 
-    poly_geom_3857 = project_polygon_to_meters(polygon_coords)
+    poly_geom_3857 = _project_polygon_to_meters(polygon_coords)
     # Keep your original WGS84 polygon for fast .intersects() bounding checks
     poly_geom_wgs84 = Polygon(polygon_coords)
     min_lng, min_lat, max_lng, max_lat = poly_geom_wgs84.bounds
@@ -130,7 +130,7 @@ def _get_intersecting_tiles(polygon_coords, zoom):
                 # 2. Project the 4 corners of the tile box 
                 # into meters using your math function
                 tile_box_3857 = box(
-                    *latlon_to_meters(w, s), *latlon_to_meters(e, n)
+                    *_latlon_to_meters(w, s), *_latlon_to_meters(e, n)
                 )
 
                 # 3. Calculate intersection area fraction in meters
@@ -148,7 +148,7 @@ def _get_intersecting_tiles(polygon_coords, zoom):
                             x=int(x),
                             y=int(y),
                             z=int(zoom),
-                            area_percentage=area_fraction,
+                            area_fraction=area_fraction,
                         )
                     )
 
@@ -299,12 +299,36 @@ def _get_polygon_detail(conn: psycopg.Connection, name: str) -> tuple:
             raise ValueError(f"polygon '{name}' does not exist.")
         row_id, row_name, row_geometry = result 
         return PolygonDetail(id=int(row_id), geometry=row_geometry, name=row_name)
-    
+
+
+def _get_database_conn_string():
+    logger = logging.getLogger("main." + __name__)
+    # 4. Resolve the targeted active runtime environment config block
+    env_mode = os.environ.get("XAPI_ENV_MODE", "DEV").upper()
+    db_type = DatabaseType.PRODUCTION if env_mode == "PRODUCTION" else DatabaseType.DEV
+    db_config = get_database_config(db_type)
+
+    # 5. Build positional format connection credentials
+    DB_URI = "postgresql://{0}:{1}@{2}:{3}/{4}".format(
+        db_config.db_user,
+        db_config.db_password,
+        db_config.db_host,
+        db_config.db_port,
+        db_config.db_name
+    )
+
+    logger.info("database URI -> " + DB_URI)
+    return DB_URI
+
+
+# ###########################
+# Public methods 
+# ---------------------------  
 
 def link_polygon_to_computation(polygon_name: str, computation_name: str) -> int:
 
     logger = logging.getLogger("main." + __name__)
-    db_conn_string = get_database_conn_string()
+    db_conn_string = _get_database_conn_string()
 
     with psycopg.connect(db_conn_string) as conn:
         try:
@@ -336,29 +360,8 @@ def link_polygon_to_computation(polygon_name: str, computation_name: str) -> int
     return 
 
 
-
-def get_database_conn_string():
-    logger = logging.getLogger("main." + __name__)
-    # 4. Resolve the targeted active runtime environment config block
-    env_mode = os.environ.get("XAPI_ENV_MODE", "DEV").upper()
-    db_type = DatabaseType.PRODUCTION if env_mode == "PRODUCTION" else DatabaseType.DEV
-    db_config = get_database_config(db_type)
-
-    # 5. Build positional format connection credentials
-    DB_URI = "postgresql://{0}:{1}@{2}:{3}/{4}".format(
-        db_config.db_user,
-        db_config.db_password,
-        db_config.db_host,
-        db_config.db_port,
-        db_config.db_name
-    )
-
-    logger.info("database URI -> " + DB_URI)
-    return DB_URI
-
-
 def add_computation(computation_name, zoom_level):
-    db_conn_string = get_database_conn_string()
+    db_conn_string = _get_database_conn_string()
     try:
         computation_id = _store_computation_in_database(db_conn_string, computation_name, zoom_level) 
         logger.info("computation inserted with id: " + str(computation_id))
@@ -378,19 +381,39 @@ def add_geo_polygon(file_name, polygon_name):
     # 3. Validate geometry type and extract coordinates
     geom_type = geometry.get("type")
     if geom_type not in ["Polygon", "MultiPolygon"]:
-        raise ValueError(
-            f"Unsupported geometry type: {geom_type}. Expected Polygon or MultiPolygon."
-        )
+        raise ValueError(f"Unsupported geometry type: {geom_type}. Expected Polygon or MultiPolygon.")
 
-    
-    db_conn_string = get_database_conn_string()
+    db_conn_string = _get_database_conn_string()
     try:
         polygon_id = _store_polygon_in_database(db_conn_string, polygon_name, geometry) 
         logger.info("polygon inserted with id: " + str(polygon_id))
     except UniqueViolation:
         logger.info("A polygon with the name {0} already exists!".format(polygon_name))
 
+
+def show_polygon_tiles(file_name, zoom_level):
+
+    file_path = Path(file_name)
+    if not file_path.exists() or not file_path.is_file():
+        logger.error(f"Target GeoJSON source path does not exist: {file_path}")
+        raise FileNotFoundError(f"Missing file: {file_path}")
+
+    with file_path.open("r", encoding="utf-8") as file:
+        geometry = json.load(file)
     
+    # 3. Validate geometry type and extract coordinates
+    geom_type = geometry.get("type")
+    if geom_type not in ["Polygon", "MultiPolygon"]:
+        raise ValueError(f"Unsupported geometry type: {geom_type}. Expected Polygon or MultiPolygon.")
+
+    raw_coordinates = geometry["coordinates"]
+    coordinates = raw_coordinates[0]
+    tiles = _get_intersecting_tiles(coordinates, zoom_level)
+    for tile in tiles:
+        print(f"x: {tile.x}, y: {tile.y}, z: {tile.z}, fraction: {tile.area_fraction}")
+
+    
+
 def start_worker():
     print(f"start geo polygon process under PID: {os.getpid()}...")
     AppConfig.load()
@@ -400,6 +423,8 @@ def start_worker():
     # add_geo_polygon("polygon.json", "patna_zoo")
     # add_computation("NDVI", 16)
     # link_polygon_to_computation("patna_zoo", "NDVI")
+    show_polygon_tiles("polygon.json", 14)
+
 
 if __name__ == "__main__":
     start_worker()
