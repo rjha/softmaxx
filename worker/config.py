@@ -79,7 +79,7 @@ def _get_config_path() -> ConfigPathResult:
         log_stream.write("no config found via environment. checking system paths...\n")
         # search system paths for config file
         search_locations = [
-            Path.home() / "sw" / ".xapi" / target_filename,
+            Path.home() / "sw" / ".xapi/py" / target_filename,
             Path("/usr/local/etc/xapi") / target_filename,
             Path("/etc/xapi") / target_filename
         ]
