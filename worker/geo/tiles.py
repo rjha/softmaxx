@@ -19,6 +19,7 @@ class GeoTile:
     x: int
     y: int
     z: int
+    packed_id: int
     area_fraction: float
 
 @dataclass(frozen=True)
@@ -37,6 +38,44 @@ class PolygonDetail:
 # Constants for Web Mercator (EPSG:3857) projection math
 EARTH_RADIUS = 6378137.0
 ORIGIN_SHIFT = math.pi * EARTH_RADIUS  # ~20037508.34 meters
+
+
+def _pack_tile_id(x: int, y: int, z: int) -> int:
+    """Packs X, Y, and Z tile coordinates into a single 64-bit integer ID.
+
+    Bit-Packing layout allocation:
+    - Z: bits 0-5    (allows zoom levels 0 to 63)
+    - X: bits 6-34   (allows X grid indices up to 536,870,911)
+    - Y: bits 35-63  (allows Y grid indices up to 536,870,911)
+
+    Returns:
+        int: Unique 64-bit packed integer ID
+    """
+    # 1. Cast inputs to integers to guarantee correct bitwise execution
+    x_val = int(x)
+    y_val = int(y)
+    z_val = int(z)
+
+    # 2. Shift components into their designated bit boundaries and combine them
+    packed_id = (y_val << 35) | (x_val << 6) | z_val
+    return packed_id
+
+
+def _unpack_tile_id(packed_id: int) -> tuple[int, int, int]:
+    """Decodes a 64-bit packed integer back into its original X, Y, and Z tile coordinates.
+    
+    Bit-Packing layout mapping:
+    - Z: bits 0-5    (mask 63)
+    - X: bits 6-34   (mask 536870911)
+    - Y: bits 35-63  (mask 536870911)
+    
+    Returns:
+        tuple: (x, y, z) as pure integers
+    """
+    z = packed_id & 63
+    x = (packed_id >> 6) & 536870911
+    y = (packed_id >> 35) & 536870911
+    return x, y, z
 
 
 def _latlon_to_meters(lon: float, lat: float) -> tuple:
@@ -141,7 +180,7 @@ def _get_intersecting_tiles(polygon_coords, zoom):
                 # Skip zero-sliver tiles to avoid database CheckViolations
                 if area_fraction > 0:
                     intersect_count += 1
-                    packed_id = (int(y) << 35) | (int(x) << 6) | int(zoom)
+                    packed_id = _pack_tile_id(int(x), int(y), int(zoom))
                     print(f"{zoom:<4} | {x:<9} | {y:<9} | {packed_id:<20}")
                     tiles.append(
                         GeoTile(
@@ -149,6 +188,7 @@ def _get_intersecting_tiles(polygon_coords, zoom):
                             y=int(y),
                             z=int(zoom),
                             area_fraction=area_fraction,
+                            packed_id=packed_id
                         )
                     )
 
@@ -213,12 +253,13 @@ def _create_geo_tile(conn: psycopg.Connection, tile: GeoTile) -> int:
     with conn.cursor() as cur:
        
         insert_query = """
-            INSERT INTO geo_tiles (tile_z, tile_x, tile_y)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (tile_z, tile_x, tile_y) DO NOTHING
+            INSERT INTO geo_tiles (tile_id, tile_z, tile_x, tile_y)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (tile_id) 
+            DO UPDATE SET tile_id = EXCLUDED.tile_id
             RETURNING tile_id;
         """
-        cur.execute(insert_query, (tile.z, tile.x, tile.y))
+        cur.execute(insert_query, (tile.packed_id, tile.z, tile.x, tile.y))
 
         # fetchone will return a tuple 
         # we need to ensure that we return the first item of tuple
@@ -322,8 +363,11 @@ def _get_database_conn_string():
 
 
 # ###########################
+# 
 # Public methods 
-# ---------------------------  
+# 
+# ############################# 
+
 
 def link_polygon_to_computation(polygon_name: str, computation_name: str) -> int:
 
@@ -410,7 +454,7 @@ def show_polygon_tiles(file_name, zoom_level):
     coordinates = raw_coordinates[0]
     tiles = _get_intersecting_tiles(coordinates, zoom_level)
     for tile in tiles:
-        print(f"x: {tile.x}, y: {tile.y}, z: {tile.z}, fraction: {tile.area_fraction}")
+        print(f"x: {tile.x}, y: {tile.y}, z: {tile.z}, fraction: {tile.area_fraction}, packed_id:{tile.packed_id}")
 
     
 
@@ -420,10 +464,11 @@ def start_worker():
     log_config = get_logger_config("global")
     AppConfig.init_logging(log_file=log_config.log_file, log_level=log_config.log_level)
     logger.info(f"geo polygon log config loaded...")
+    # show_polygon_tiles("polygon.json", 14)
     # add_geo_polygon("polygon.json", "patna_zoo")
-    # add_computation("NDVI", 16)
-    # link_polygon_to_computation("patna_zoo", "NDVI")
-    show_polygon_tiles("polygon.json", 14)
+    # add_computation("TEMP", 14)
+    link_polygon_to_computation("patna_zoo", "TEMP")
+   
 
 
 if __name__ == "__main__":
