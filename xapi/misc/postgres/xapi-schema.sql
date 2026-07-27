@@ -100,7 +100,7 @@ CREATE TABLE polygon_computation (
 --  
 
 CREATE TABLE geo_tiles (
-    tile_id BIGSERIAL PRIMARY KEY,
+    tile_id BIGINT PRIMARY KEY,
     tile_z INTEGER NOT NULL CHECK (tile_z BETWEEN 0 AND 30),
     tile_x INTEGER NOT NULL,
     tile_y INTEGER NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE geo_tiles (
     CONSTRAINT unique_geo_tile UNIQUE (tile_z, tile_x, tile_y)
 );
 
-CREATE INDEX idx_geo_tile_xyz ON geo_tiles(tile_z, tile_x, tile_y);
+
 
 -- 5. resolve a polygon into tiles at a zoom level 
 -- area_fraction is a measure of tile area enclosed by polygon 
